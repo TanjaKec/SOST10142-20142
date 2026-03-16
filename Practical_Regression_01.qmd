@@ -1,0 +1,398 @@
+---
+title: "Practical Exercise: Exploring Relationships in the Homework Dataset"
+subtitle: "SOST10142/20142 Applied Statistics for Social Scientists"
+author: "Tanja"
+format: 
+  pdf:
+    documentclass: article
+    fontsize: 11pt
+    tbl-colwidths: [50, 110]
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+# Introduction
+
+In this practical you will analyse data from the study:
+
+Smith, C. (2025). *The Impact of Homework Deadline Times on College Student Performance and Stress: A Quasi-Experiment in Business Statistics*. Journal of Statistics and Data Science Education, 33(3), 334–343. <https://doi.org/10.1080/26939169.2024.2441692>
+
+The dataset contains information about students enrolled in a statistics course, including:
+
+-   time spent on homework
+-   homework grades
+-   course grades
+-   GPA
+-   homework deadline policies
+
+The goal of this exercise is to explore **relationships between variables** and begin thinking about **which factors may influence student performance**.
+
+In the previous lecture we examined the relationship between:
+
+Homework time $\rightarrow$ Homework grade
+
+In this practical you will investigate **other relationships in the dataset**.
+
+Next week we will extend these ideas by fitting a **multiple regression model**.
+
+## Dataset Variables
+
+The dataset contains several variables describing student behaviour, background characteristics, and academic performance.
+
+| Variable | Description |
+|-------------------------------|----------------------------------------|
+| **ID** | Unique identifier for each student |
+| **HW_minutes** | Total number of minutes the student spent on homework |
+| **Midnight_deadline** | Indicator variable showing whether homework deadlines were set at midnight (1 = midnight deadline, 0 = earlier deadline) |
+| **Fall_semester** | Indicator variable showing whether the course took place in the fall semester (1 = fall semester, 0 = other semester) |
+| **Female** | Gender indicator (1 = female, 0 = male) |
+| **Section** | Course section number |
+| **Year_in_school** | Student’s academic year (1 = first year, 2 = second year, 3 = third year, 4 = fourth year) |
+| **GPA** | Student’s grade point average |
+| **ACT** | ACT entrance exam score (some values may be missing) |
+| **Grade_course** | Student’s final course grade |
+| **Grade_HW** | Student’s homework grade |
+
+### Academic Major Indicators
+
+| Variable             | Description                                     |
+|----------------------|-------------------------------------------------|
+| **Major_BA**         | Business Administration major (1 = yes, 0 = no) |
+| **Major_Finance**    | Finance major                                   |
+| **Major_Accounting** | Accounting major                                |
+| **Major_Marketing**  | Marketing major                                 |
+| **Major_Management** | Management major                                |
+| **Major_Sport**      | Sport management major                          |
+
+### Student Survey Variables
+
+The following survey questions are measured on a **5-point Likert scale**, where higher values indicate stronger agreement.
+
+| Value | Interpretation    |
+|-------|-------------------|
+| 1     | Strongly disagree |
+| 2     | Disagree          |
+| 3     | Neutral           |
+| 4     | Agree             |
+| 5     | Strongly agree    |
+
+| Variable | Description |
+|-------------------------------|----------------------------------------|
+| **Q1_HW_effective** | Student perception of how effective homework is for learning (Likert scale 1–5) |
+| **Q2_deadline_effect** | Perceived effect of deadline timing on homework completion (Likert scale 1–5) |
+| **Q3_deadline_stress** | Degree to which homework deadlines create stress (Likert scale 1–5) |
+| **Q4_average_time** | Student-reported average time spent on homework (minutes; stored as text in the dataset) |
+| **Q5_preferred_time** | Preferred time of day for completing homework |
+| **Q6_extensions** | Number of homework extensions requested |
+| **Q7_late_turnins** | Number of late homework submissions |
+
+Take a moment to read through the variable descriptions.
+
+**Which variables do you think might help explain differences in student grades?**
+
+Load the dataset and fit the regression model used in the lecture.
+
+```{r}
+library(dplyr)
+hw <- read.csv("https://raw.githubusercontent.com/TanjaKec/mydata/master/HW_R.csv")
+glimpse(hw)
+summary(hw)
+
+model_hw<- lm(Grade_HW~ HW_minutes,data =hw)
+summary(model_hw)
+
+```
+
+[**Question 1**]{style="color:red;"}
+
+What does the positive slope in the regression model suggest about the relationship between homework time and homework grades?
+
+\vspace{3cm}
+
+[**Question 2** ]{style="color:red;"}
+
+The value of ($R^2$) in the model is approximately 0.065.
+
+What does this tell us about how much variation in homework grades is explained by homework time?
+
+\vspace{3cm}
+
+## Testing for the Existence of a Relationship
+
+The value of $R^2$ tells us how much variation in the response variable is explained by the model.
+
+However, we still need to determine whether the observed relationship is statistically meaningful.
+
+To answer this question, we use a hypothesis test based on the F-statistic.
+
+For the regression model relating **Grade_HW** to **HW_minutes**, we test:
+
+$$
+H_0 : \beta_1 = 0
+$$
+
+$$
+H_1 : \beta_1 \neq 0
+$$
+
+::: callout-note
+**Writing hypotheses in a report**
+
+In this practical we write hypotheses in a simplified form.\
+In a statistical report you would usually describe them more clearly in words and explain their meaning.
+
+For the example relating **homework grade** to **homework time**, the hypotheses are:
+
+$$
+H_0 : \beta_1 = 0
+$$
+
+There is **no linear relationship** between homework time and homework grade.
+
+$$
+H_1 : \beta_1 \neq 0
+$$
+
+There **is a linear relationship** between homework time and homework grade.
+
+In a report you would typically explain what this means in context.\
+For example, rejecting $(H_0)$ would suggest that the amount of time students spend on homework is related to their homework performance.
+:::
+
+The decision rule for the F-test is shown below.
+
+```{r}
+#| label: f_test_decision_rule
+#| echo: false
+#| fig-align: center
+#| out-width: "500px"
+
+knitr::include_graphics("images/F-test.png")
+```
+
+To evaluate this hypothesis test, we examine the output of the fitted regression model. The regression summary contains the **F-statistic**, which is used to test whether the explanatory variable helps explain variation in the response variable.
+
+To examine the statistical results of the fitted regression model, we now look at the regression summary to examine the statistical summary of the fitted regression model.
+
+The regression summary provides information about the estimated coefficients, the value of $R^2$, and the F-statistic used for hypothesis testing.
+
+Run the following command to display the regression output and identify:
+
+-   the estimated slope coefficient
+
+-   the value of $R^2$
+
+-   the value of the **F-statistic**
+
+-   the **degrees of freedom** of the test
+
+```{r}
+#| echo: true
+
+summary(model_hw)
+```
+
+This output provides important information about the model, including the estimated coefficients, the value of $R^2$, and the F-statistic used for hypothesis testing.
+
+Use the model summary to answer the following questions.
+
+1.  What is the value of $F_{calc}$?
+
+2.  What are the degrees of freedom for the test?
+
+3.  Use the command below to find the critical value $F_{crit}$ at the 5% significance level.
+
+```{r}
+#| echo: true
+
+qf(0.95, 1, 83)
+```
+
+4.  Compare $F_{calc}$ with $F_{crit}$.
+5.  State your conclusion in words.
+
+[**Question 3**]{style="color:red;"}
+
+The F-test indicated that the relationship is statistically significant.
+
+What does this mean in practical terms?
+
+\vspace{3cm}
+
+[**Question 4**]{style="color:red;"}
+
+Why should we be cautious when using regression models to make predictions outside the range of the observed data?
+
+\vspace{3cm}
+
+So far we have focused on the relationship between homework time and homework grades.
+
+In the next part of the exercise you will explore other relationships in the dataset and investigate which variables may help explain student performance.
+
+# Part 2: Exploring Other Relationships
+
+The dataset contains several other variables describing students and their academic performance.
+
+Some variables that may be relevant include:
+
+-   GPA
+
+-   Grade_course
+
+-   Grade_HW
+
+-   HW_minutes
+
+-   Midnight_deadline
+
+Your task is to explore possible relationships between these variables.
+
+Before analysing the relationship formally, it is useful to visualise the data using a scatterplot.
+
+We can then fit a simple linear regression model that describes the relationship between homework time and homework grade.
+
+**Step 1**: Create Scatterplots
+
+Create scatterplots for several pairs of variables.
+
+```{r}
+plot(Grade_course ~ GPA, data = hw)
+
+plot(Grade_HW ~ GPA, data = hw)
+
+plot(Grade_course ~ HW_minutes, data = hw)
+```
+
+Add the line of best fit to the scatter plots using the `abline()` function as illustrated below.
+
+```{r}
+plot(Grade_course ~ GPA,
+     data = hw,
+     pch = 19,
+     col = "steelblue",
+     xlab = "GPA",
+     ylab = "Course grade")
+
+abline(lm(Grade_course ~ GPA, data = hw),
+       col = "red",
+       lwd = 2)
+```
+
+For each plot consider:
+
+-   Does a relationship appear to exist?
+
+-   Is the relationship positive or negative?
+
+-   Does the relationship appear strong or weak?
+
+**Step 2**: Fit Regression Models
+
+Choose two or three relationships that seem interesting and fit simple regression models.
+
+```{r}
+lm(Grade_course ~ GPA, data = hw)
+
+lm(Grade_HW ~ GPA, data = hw)
+
+lm(Grade_course ~ HW_minutes, data = hw)
+```
+
+For each model examine:
+
+-   the slope
+
+-   the ($R^2$) value
+
+-   whether the relationship appears statistically significant
+
+[**Question 5**]{style="color:red;"}
+
+Which pair of variables appears to have the strongest relationship?
+
+Explain your reasoning.
+
+\vspace{4cm}
+
+# Part 3: Thinking Ahead
+
+Next week we will build multiple regression models, where several explanatory variables are used together to explain variation in an outcome.
+
+Think about the following question:
+
+If you wanted to explain variation in student grades, which variables from this dataset might be useful predictors?
+
+Write down two or three variables that you would include in a multiple regression model.
+
+\vspace{4cm}
+
+**Optional**: Investigating Correlations
+
+As a quick summary of relationships in the dataset, we can examine the correlation matrix.
+
+```{r}
+cor(hw[,c("GPA","Grade_course","Grade_HW","HW_minutes")])
+```
+
+Which variables in the dataset might help explain variation in course grades?
+
+\vspace{2cm}
+
+Which variables appear to be most strongly correlated?
+
+\vspace{2cm}
+
+## Exploring Correlations
+
+In the previous exercises you explored several relationships between variables using scatterplots and simple regression models. Another useful way to summarise relationships in a dataset is to examine a **correlation matrix**.
+
+The correlation coefficient measures the **strength and direction of a linear relationship between two variables**.\
+Its values range from −1 to 1:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Value} & \textbf{Interpretation} \\
+\midrule
+$-1$ & strong negative relationship \\
+$0$  & no linear relationship \\
+$1$  & strong positive relationship \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+A correlation matrix summarises the relationships between several variables simultaneously.
+
+### Computing a Correlation Matrix in R
+
+We first select the numerical variables that may be relevant for academic performance.
+
+```{r}
+vars <- hw[, c("HW_minutes",
+               "Grade_HW",
+               "Grade_course",
+               "GPA")]
+
+cor(vars, use = "complete.obs")
+```
+
+This command computes the **correlation matrix** between the selected variables. Each value in the table shows the correlation between a pair of variables.
+
+# Your Turn 👉
+
+Examine the correlation matrix and answer the following questions:
+
+1.  Which variables appear to be most strongly correlated?
+
+2.  Which variables appear to have little or no relationship?
+
+3.  Do the correlations support what we observed earlier between homework time and homework grade?
+
+### Looking Ahead
+
+Correlation analysis helps us identify variables that may be useful predictors in a regression model.
+
+Next week we will extend our analysis by fitting a multiple regression model that includes several explanatory variables at the same time.

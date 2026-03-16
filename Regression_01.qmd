@@ -1,0 +1,722 @@
+---
+title: "Introduction to Regression: A Real Example"
+subtitle: "Homework Deadlines and Student Performance"
+author: "Tanja"
+date: last-modified
+format:
+  html:
+    theme: cosmo
+    toc: true
+    number-sections: true
+    math: mathjax
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+## Learning Objectives
+
+By the end of this lecture you should be able to:
+
+-   identify a suitable **response** and **explanatory** variable for a simple regression model
+-   visualise a relationship using a **scatterplot**
+-   fit and interpret a **simple linear regression model** in R
+-   explain the meaning of the **regression line** and **residuals**
+-   interpret the coefficient of determination, $R^2$
+-   assess whether a relationship is **statistically significant**
+-   use a fitted regression model to make simple predictions
+
+## Lecture Overview
+
+In this lecture we will cover:
+
+-   the study behind the data
+-   loading and exploring the homework dataset
+-   choosing variables for a regression model
+-   scatterplots and first impressions of the relationship
+-   fitting a regression line in R
+-   residuals and model fit
+-   explained and unexplained variation
+-   the coefficient of determination, $R^2$
+-   testing for the existence of a relationship
+-   making predictions from the fitted model
+-   the ANOVA table
+
+## A Real Example
+
+So far we have discussed the ideas behind regression in general terms.
+
+To make these ideas more concrete, we now turn to a real dataset taken from a published study. Working with real data helps us see how regression modelling is used in practice and how the main ideas from the previous lecture are applied step by step.
+
+## The Study Behind the Data
+
+The dataset used in this lecture comes from the following study:
+
+Smith, C. (2025). *The Impact of Homework Deadline Times on College Student Performance and Stress: A Quasi-Experiment in Business Statistics*. Journal of Statistics and Data Science Education, 33(3), 334–343. <https://doi.org/10.1080/26939169.2024.2441692>
+
+The study investigates whether the timing of homework deadlines affects student performance and stress levels.
+
+Researchers collected data from students enrolled in a statistics course and compared outcomes under different homework deadline policies.
+
+You are not expected to read the full paper for this lecture, but it provides useful context for the dataset we will analyse.
+
+## Why Study Relationships?
+
+Many questions in statistics involve understanding relationships between variables.
+
+For example:
+
+-   does study time affect exam performance?
+-   does advertising affect sales?
+-   does the timing of homework deadlines affect student outcomes?
+
+Regression analysis helps us quantify these relationships.
+
+In this lecture we will explore these ideas using the homework deadline dataset.
+
+## Loading the Homework Dataset
+
+```{r}
+#| label: load_homework_data
+#| echo: true
+#| message: false
+#| warning: false
+
+library(dplyr)
+hw <- read.csv("https://raw.githubusercontent.com/TanjaKec/mydata/master/HW_R.csv")
+
+glimpse(hw)
+```
+
+The `glimpse()` function provides a quick overview of the structure of the dataset.
+
+Each row represents a single student observation, while each column represents a variable recorded in the study. The output shows the name of each variable, its data type, and a few example values.
+
+Before carrying out any statistical analysis, it is important to understand what the variables represent and how they might be used in a regression model.
+
+## Understanding the Variables
+
+Several variables in this dataset describe characteristics of the students and their study behaviour.
+
+Some of the key variables include:
+
+-   `HW_minutes` – the total number of minutes a student reported spending on homework
+-   `Midnight_deadline` – an indicator for whether the course used a midnight homework deadline
+-   `GPA` – the student's grade point average
+-   `Grade_course` – the student's overall course grade
+-   `Grade_HW` – the student's homework grade
+
+Other variables record demographic characteristics such as gender, academic major, and year in school.
+
+In regression analysis we typically distinguish between two types of variables:
+
+-   a **response variable**, which is the outcome we want to explain
+-   an **explanatory variable**, which may help explain variation in the response
+
+## Choosing Variables for Analysis
+
+A natural question in the context of this study is whether the amount of time students spend on homework is related to their homework performance.
+
+To explore this idea we begin with:
+
+-   **Response variable:** `Grade_HW`
+-   **Explanatory variable:** `HW_minutes`
+
+Both variables are measured numerically, which makes them suitable for a **simple linear regression model**. Before fitting a regression model, it is useful to first visualise the relationship between the two variables using a scatterplot.
+
+```{r}
+#| label: hw_scatterplot
+#| echo: true
+
+plot(Grade_HW ~ HW_minutes,
+     data = hw,
+     pch = 19,
+     col = rgb(70,130,180,120,maxColorValue = 255),  # transparent steelblue
+     xlab = "Homework time (minutes)",
+     ylab = "Homework grade",
+     main = "Homework Grade vs Homework Time")
+
+abline(lm(Grade_HW ~ HW_minutes, data = hw),
+       col = "red",
+       lwd = 2)
+```
+
+Each point on the graph represents a single student. The horizontal axis shows the amount of time spent on homework, while the vertical axis shows the student's homework grade.
+
+The red line represents the **line of best fit**, which summarises the overall relationship between homework time and homework performance. In the next section we will see how this line is estimated using regression modelling.
+
+::: callout-important
+## Your Turn 👉 Stop and Think 🤔
+
+Based on the scatterplot, consider the following:
+
+-   Does the relationship appear **positive**, **negative**, or **unclear**?
+-   Do students who spend **more time on homework** tend to achieve **higher grades**?
+
+Take a moment to think about this before continuing.
+:::
+
+Visual inspection of the scatterplot gives us an initial idea of whether a relationship may exist between the two variables.
+
+However, visual inspection alone is not sufficient. To analyse the relationship more formally, we now fit a **simple linear regression model**.
+
+## From Scatterplot to Regression
+
+A scatterplot allows us to visually inspect whether a relationship may exist between two variables. However, visual inspection alone is not sufficient.
+
+Regression analysis provides a way to summarise the relationship between two variables using a straight line that best represents the overall pattern in the data.
+
+This line is called the **regression line** or the **line of best fit**.
+
+In simple linear regression, the relationship between the variables is written as
+
+$$
+Y = \beta_0 + \beta_1 X + e
+$$
+
+where
+
+**- \\(Y\\)** is the **response variable**
+
+**- \\(X\\)** is the **explanatory variable**
+
+**- \\(\\beta_0\\)** is the **intercept**
+
+**- \\(\\beta_1\\)** is the **slope**
+
+**- \\(e\\)** represents the **influence of other factors not included in the model**
+
+The slope tells us how much the response variable changes when the explanatory variable increases by one unit.
+
+```{r}
+#| label: hw_regression_model
+#| echo: true
+
+model_hw <- lm(Grade_HW ~ HW_minutes, data = hw)
+
+model_hw
+```
+
+The `lm()` function in R fits a **linear model**.
+
+In this case, we are estimating the relationship between:
+
+-   `Grade_HW` (homework grade)
+-   `HW_minutes` (time spent on homework)
+
+The output provides estimates of the intercept and the slope of the regression line.
+
+```{r}
+#| label: hw_regression_line
+#| echo: true
+
+plot(Grade_HW ~ HW_minutes,
+     data = hw,
+     pch = 19,
+     col = rgb(70,130,180,120,maxColorValue = 255),
+     xlab = "Homework time (minutes)",
+     ylab = "Homework grade",
+     main = "Homework Grade vs Homework Time")
+
+abline(model_hw, col = "red", lwd = 2)
+```
+
+The red line is the **estimated regression line**.
+
+It summarises the overall relationship between homework time and homework performance. Points above the line represent students who performed **better than predicted**, while points below the line represent students who performed **worse than predicted**.
+
+::: callout-tip
+## Think about it
+
+Does the regression line suggest that spending more time on homework is associated with **higher grades**, **lower grades**, or **no clear relationship**?
+:::
+
+## Residuals
+
+When we fit a regression line to the data, not all points lie exactly on the line.
+
+For each observation, the regression model produces a **predicted value** of the response variable. This predicted value is usually written as:
+
+$$
+\hat{Y}
+$$
+
+The difference between the observed value and the predicted value is called the **residual**.
+
+$$
+\text{Residual} = Y - \hat{Y}
+$$
+
+Residuals measure the vertical distance between each observed data point and the regression line.
+
+```{r}
+#| label: hw_residuals
+#| echo: true
+
+hw$fitted <- fitted(model_hw)
+hw$residuals <- resid(model_hw)
+
+head(hw[, c("Grade_HW","HW_minutes","fitted","residuals")])
+```
+
+The fitted values (`fitted`) represent the predicted homework grade produced by the regression model.
+
+The residuals measure the difference between the actual grade and the predicted grade.
+
+-   A **positive residual** means the student performed **better than predicted**.
+-   A **negative residual** means the student performed **worse than predicted**.
+
+```{r}
+#| label: hw_residual_plot
+#| echo: true
+
+plot(Grade_HW ~ HW_minutes,
+     data = hw,
+     pch = 19,
+     col = rgb(70,130,180,120,maxColorValue = 255),
+     xlab = "Homework time (minutes)",
+     ylab = "Homework grade",
+     main = "Residuals and the Regression Line")
+
+abline(model_hw, col = "red", lwd = 2)
+
+segments(hw$HW_minutes,
+         hw$fitted,
+         hw$HW_minutes,
+         hw$Grade_HW,
+         col = "darkgrey")
+```
+
+The vertical grey lines show the **residuals**.
+
+Each line represents the difference between the actual value and the value predicted by the regression model.
+
+Shorter residuals indicate that the regression line fits the data more closely.
+
+::: callout-tip
+## Think about it
+
+Do most points lie close to the regression line, or are they widely scattered?
+
+What does this suggest about how well homework time explains variation in homework grades?
+:::
+
+## Explained and Unexplained Variation
+
+The total variation in the response variable can be decomposed into two parts:
+
+-   **explained variation**, captured by the regression model
+
+-   **unexplained variation**, captured by the residuals
+
+This decomposition forms the basis for several important quantities in regression analysis, including the coefficient of determination $R^2$ and the F-test.
+
+Mathematically, this decomposition can be written as
+
+$$
+\text{Total Variation}
+=
+\text{Explained Variation}
++
+\text{Unexplained Variation}
+$$
+
+or more specifically
+
+$$
+\sum (Y - \bar{Y})^2 =
+\sum (\hat{Y} - \bar{Y})^2 +
+\sum (Y - \hat{Y})^2
+$$
+
+where
+
+-   $Y$ is the observed value
+-   $\hat{Y}$ is the predicted value from the regression model
+-   $\bar{Y}$ is the mean of the response variable
+
+In this decomposition:
+
+-   $Y - \bar{Y}$ measures how far each observation is from the overall average
+-   $\hat{Y} - \bar{Y}$ measures the variation explained by the regression model
+-   $Y - \hat{Y}$ measures the unexplained variation (the residual)
+
+::: callout-tip
+## Key idea
+
+A **good regression model** explains a large portion of the total variation in the response variable.
+
+This means that the residuals will tend to be **small**, because the model closely matches the observed data.
+:::
+
+To summarise how much of the total variation is explained by the model, we use the **coefficient of determination**, denoted by $R^2$.
+
+$$
+\text{Scatterplot} \;\rightarrow\; 
+\text{Regression Line} \;\rightarrow\; 
+\text{Residuals} \;\rightarrow\; 
+\text{Variation} \;\rightarrow\; 
+R^2
+$$
+
+We will examine this quantity next.
+
+## The Coefficient of Determination $R^2$
+
+The decomposition of variation leads to an important summary measure in regression analysis: the **coefficient of determination**, denoted by $R^2$.
+
+The coefficient of determination measures the **proportion of the total variation in the response variable that is explained by the regression model**.
+
+It is defined as
+
+$$
+R^2 =
+\frac{\text{Explained Variation}}{\text{Total Variation}}
+$$
+
+The value of $R^2$ always lies between 0 and 1.
+
+-   $R^2 = 0$ indicates that the model explains none of the variation in the response variable.
+-   $R^2 = 1$ indicates that the model perfectly explains the variation.
+
+In practice, most regression models lie somewhere between these two extremes.
+
+## Obtaining $R^2$ in R
+
+To obtain detailed information about the fitted regression model we use the `summary()` function.
+
+```{r}
+#| label: hw_model_summary 
+#| echo: true
+
+summary(model_hw)
+```
+
+The summary() function provides a detailed statistical summary of the regression model, including:
+
+-   the estimated regression coefficients
+
+-   the variability of the residuals
+
+-   measures of how well the model fits the data
+
+-   statistical tests used to evaluate the relationship between the variables
+
+One of the key quantities reported in this output is the coefficient of determination $R^2$.
+
+### Interpreting the $R^2$ value
+
+For our regression model the coefficient of determination is
+
+$$
+R^2 = 0.065
+$$
+
+This means that approximately 6.5% of the variation in homework grades is explained by the amount of time students spend on homework.
+
+The remaining 93.5% of the variation must be due to other factors that are not included in the model.
+
+::: callout-tip
+## Pause and think
+
+Do you think this is a **good model or a poor model**?
+
+Why?
+
+Consider the following:
+
+-   the slope coefficient is statistically significant
+-   the value of $R^2$ is relatively small
+-   the scatterplot shows substantial variability in grades
+
+What does this suggest about the ability of homework time to explain differences in homework performance?
+:::
+
+Although the value of $R^2$ is relatively small, this does **not necessarily mean that the model is useless**.
+
+In studies involving human behaviour and performance, it is common for many different factors to influence the outcome. As a result, simple regression models that include only one explanatory variable often explain only a modest proportion of the overall variation.
+
+In our case, homework time appears to have a measurable relationship with homework grades, but it clearly does **not capture all of the factors that influence student performance**.
+
+The regression model therefore suggests that **time spent on homework is one factor influencing homework grades, but many other factors must also play an important role**.
+
+The value of $R^2$ tells us how much of the variation in homework grades is explained by homework time.
+
+However, to fully understand the connection between the variables we must also describe the **nature of the relationship** itself, i.e. we still need to answer an important question:
+
+**What does the relationship between homework time and homework grades actually look like?**
+
+## Further Data Analysis (FDA)
+
+So far we have examined the regression model and the value of $R^2$.
+
+However, before using the model for interpretation or prediction, we must determine whether the relationship observed in the sample data is statistically meaningful.
+
+This question can be answered using a hypothesis test based on the **F-statistic**, which evaluates whether the regression model explains a statistically significant portion of the variation in the response variable.
+
+Like all hypothesis tests, this procedure is carried out in four stages:
+
+1.  Specify the hypotheses
+
+2.  Define the test parameters and decision rule
+
+3.  Examine the sample evidence
+
+4.  State the conclusion
+
+### Stage 1: Specify the Hypotheses
+
+The hypotheses test whether the explanatory variable helps explain variation in the response variable.
+
+$$
+H_0 : \beta_1 = 0
+$$
+
+There is **no relationship** between homework time and homework grades.
+
+$$
+H_1 : \beta_1 \neq 0
+$$
+
+There **is a relationship** between homework time and homework grades.
+
+### Stage 2: Decision Rule
+
+The hypothesis test is based on the **F-statistic**, which follows an F distribution.
+
+The decision rule compares the calculated value of the statistic, denoted ($F_{calc}$), with a critical value ($F_{crit}$).
+
+If the test statistic lies in the rejection region, we reject the null hypothesis and conclude that there is evidence of a relationship between the variables.
+
+The F-test compares the variation explained by the regression model with the variation that remains unexplained.
+
+If the explained variation is sufficiently larger than the unexplained variation, the model is considered statistically significant.
+
+```{r}
+#| label: f_test_decision_rule
+#| echo: false
+#| fig-align: center
+#| out-width: "500px"
+
+knitr::include_graphics("images/F-test.png")
+```
+
+The decision rule can therefore be summarised as:
+
+-   If ($F_{calc}$ \< $F_{crit}$) $→$ do **not reject** ($H_0$)
+-   If ($F_{calc}$ \> $F_{crit}$) $→$ **reject** ($H_0$)
+
+### Stage 3: Sample evidence (use your model)
+
+We now examine the sample evidence obtained from the fitted regression model.
+
+```{r}
+summary(model_hw)
+```
+
+From the regression output we obtain the value of the F-statistic, which measures the relative size of the explained variation compared with the unexplained variation.
+
+For this model the calculated statistic is:
+
+-   $F = 5.748$
+
+To apply the decision rule we also need the degrees of freedom of the test:
+
+-   $df_1 = 1$ (regression degrees of freedom)
+
+-   $df_2 = 83$ (residual degrees of freedom)
+
+Using these degrees of freedom, the critical value of the F distribution at the $5%$ significance level is:
+
+```{r}
+#| echo: true
+# The critical value corresponds to the 95th percentile of the F distribution with df_1 = 1 and df_2 = 83.
+F_crit <- qf(0.95, 1, 83) # the 95th percentile (critical value) of the F distribution
+F_crit
+```
+
+$F_{crit} \approx 3.96$
+
+We now compare the calculated value with the critical value:
+
+$F_{calc} = 5.748 \quad > \quad F_{crit} = 3.96$
+
+Therefore, according to the decision rule, we reject the null hypothesis $H_0$.
+
+The calculated F-statistic is larger than the critical value, which means that the variation explained by the regression model is sufficiently large relative to the unexplained variation.
+
+### Stage 4: Conclusion
+
+Since
+
+$F_{calc} > F_{crit}$
+
+we reject the null hypothesis $H_0$.
+
+This provides statistical evidence that there is a relationship between homework time and homework grades.
+
+Since the regression model appears to describe a statistically significant relationship, we can now describe the nature of that relationship using the estimated regression equation.
+
+$\hat{Y} = 23.10 + 0.021 HW_{minutes}$
+
+## Describing the Nature of the Relationship
+
+Earlier we asked whether there is evidence of a relationship between homework time and homework grades.
+
+The regression model suggests that such a relationship exists, but it is relatively weak.
+
+The estimated regression equation is
+
+$$
+\widehat{\text{Grade\_HW}} = 23.10 + 0.021 \times \text{HW\_minutes}
+$$
+
+The positive slope of the regression line indicates that **as the amount of time spent on homework increases, the predicted homework grade tends to increase**.
+
+However, the value of $R^2 = 0.065$ indicates that this relationship explains only a small proportion of the variation in homework grades.
+
+This suggests that although homework time may influence performance, **many other factors also affect student outcomes**.
+
+::: callout-tip
+## Think about it
+
+What other factors might influence homework grades besides the amount of time spent on homework?
+
+For example, consider:
+
+-   prior knowledge of the material
+-   study strategies
+-   motivation
+-   stress levels
+-   outside commitments
+:::
+
+## Using the Model to Make Predictions
+
+One of the main purposes of regression models is to make predictions about the response variable for given values of the explanatory variable.
+
+Using the estimated regression equation
+
+$$
+\widehat{\text{Grade\_HW}} = 23.10 + 0.021 \times \text{HW\_minutes}
+$$
+
+we can predict the homework grade for a student who spends a specific amount of time on homework.
+
+Suppose a student spends **120 minutes** on homework.
+
+Substituting this value into the regression equation gives
+
+$$
+\widehat{\text{Grade\_HW}}
+=
+23.10 + 0.021 \times 120
+$$
+
+$$
+\widehat{\text{Grade\_HW}} \approx 25.6
+$$
+
+The model therefore predicts that a student who spends **120 minutes on homework** would obtain a homework grade of approximately **25.6**.
+
+```{r}
+#| label: hw_prediction_example
+#| echo: true
+
+23.10 + 0.021 * 120
+```
+
+Or we can use `predict()` function.
+
+```{r}
+#| label: hw_prediction_predict
+#| echo: true
+
+predict(model_hw,
+        newdata = data.frame(HW_minutes = 120))
+```
+
+## A Note on Prediction
+
+Regression models are most reliable when used to make predictions **within the range of the observed data**.
+
+If we attempt to make predictions for values of the explanatory variable far outside the range observed in the dataset, the predictions may be unreliable. This situation is known as **extrapolation**.
+
+It is therefore important to examine the range of the explanatory variable before using the regression model for prediction.
+
+```{r}
+#| label: hw_range
+#| echo: true
+
+summary(hw$HW_minutes)
+```
+
+## The ANOVA Table
+
+The F-test used above is closely related to the analysis of variance (ANOVA) framework.
+
+We can obtain the ANOVA table in R using:
+
+```{r}
+#| label: hw_anova
+#| echo: true
+
+anova(model_hw)
+```
+
+The ANOVA table provides another way of presenting the same regression model by separating the variation in the response variable into:
+
+-   variation explained by the regression model
+
+-   variation left unexplained (the residual variation)
+
+The F-statistic compares these two quantities.
+
+If the explained variation is large relative to the unexplained variation, the regression model is considered statistically significant.
+
+This is exactly the same decomposition introduced earlier:
+
+$$
+\text{Total Variation}
+=
+\text{Explained Variation}
++
+\text{Unexplained Variation}
+$$
+
+The F-statistic in the ANOVA table compares the amount of variation explained by the model with the amount left unexplained.
+
+If the explained variation is large relative to the unexplained variation, the F-statistic will be large and the model will be statistically significant.
+
+For our model, the ANOVA table confirms the earlier conclusion from the regression summary: there is statistical evidence of a relationship between homework time and homework grades, although the relationship is relatively weak.
+
+## Summary
+
+In this lecture we applied regression to a real dataset on homework deadlines and student performance.
+
+Our analysis suggests that:
+
+-   the relationship between homework time and homework grades is positive
+-   the relationship is statistically significant
+-   the relationship is relatively weak, with $R^2 = 0.065$
+-   homework time explains only a small proportion of the variation in homework grades
+-   the fitted model can be used to make predictions, although these should be interpreted with caution
+
+This example illustrates an important lesson in regression: a relationship may be statistically significant without explaining a large proportion of the overall variation in the response.
+
+---
+
+## Your Turn 👉
+
+Using what you have learned in this lecture, try to answer the following questions.
+
+1.  What does the positive slope in the regression model suggest about the relationship between homework time and homework grades?
+
+2.  The value of $R^2$ in our model is approximately 0.065. What does this tell us about how much variation in homework grades is explained by homework time?
+
+3.  The F-test indicated that the relationship is statistically significant. What does this mean in practical terms?
+
+4.  Why should we be cautious when using regression models to make predictions outside the range of the observed data?
+
+Think about these questions before the next lecture.
