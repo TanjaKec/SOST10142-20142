@@ -1,7 +1,7 @@
-# SOST 10141 / 20142 – Applied Statistics for Social Scientists
+# SOST 10141 / 20142 - Applied Statistics for Social Scientists
 
-This repository contains teaching materials for the course  
-**SOST 10141 / 20142 – Applied Statistics for Social Scientists**.
+This repository contains teaching materials for the year-1/year-2 course  
+*SOST 10141 / 20142 – Applied Statistics for Social Scientists*.
 
 The materials will be added **week by week throughout the semester** and include lecture notes, practical exercises, datasets, and supporting resources used in class.
 
