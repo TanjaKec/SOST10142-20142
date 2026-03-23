@@ -1,0 +1,829 @@
+---
+title: "Extending to Multiple Regression"
+subtitle: "Homework Deadlines and Student Performance"
+author: "Tatjana Kecojevic"
+date: last-modified
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    code-fold: true
+    code-summary: "Show/Hide Code"
+    smooth-scroll: true
+    page-layout: article
+
+execute:
+  echo: true
+  warning: false
+  message: false
+  freeze: auto
+---
+
+# Moving from Simple to Multiple Regression
+
+In the previous session, we examined the relationship between homework time and course performance using a simple regression model.
+
+This provided a useful starting point. However, it treated homework time as if it were the only factor influencing performance.
+
+In reality, student performance is shaped by several factors at once, including prior academic ability, deadline timing, and perceived stress.
+
+To better understand these relationships, we now move to a **multiple regression framework**, where we can consider several predictors simultaneously.
+
+
+# Load and Inspect the Data
+
+```{r}
+# Load the dataset
+hw <- read.csv("https://raw.githubusercontent.com/TanjaKec/mydata/master/HW_R.csv")
+
+# Inspect structure
+str(hw)
+
+# Summary statistics
+summary(hw)
+```
+Before proceeding, we ensure that variables are stored in the correct format.
+```{r}
+# Convert variables to appropriate types
+hw$HW_minutes <- as.numeric(hw$HW_minutes)
+hw$GPA <- as.numeric(hw$GPA)
+hw$ACT <- as.numeric(hw$ACT)
+hw$Q3_deadline_stress <- as.numeric(hw$Q3_deadline_stress)
+
+hw$Midnight_deadline <- as.factor(hw$Midnight_deadline)
+```
+# Comparing Candidate Predictors
+
+We consider the following explanatory variables:
+
+- `HW_minutes`: time spent on homework
+- `GPA, ACT`: measures of prior academic ability
+- `Midnight_deadline`: deadline timing
+- `Q3_deadline_stress`: perceived stress related to deadlines
+
+A useful first step is to examine how each predictor relates to course performance on its own.
+
+```{r}
+library(dplyr)
+library(purrr)
+
+# List of predictors
+preds <- c("HW_minutes", "GPA", "ACT", "Midnight_deadline", "Q3_deadline_stress")
+
+# Create results table
+results_table <- map_dfr(preds, function(v) {
+  
+  # Build formula
+  f <- as.formula(paste("Grade_course ~", v))
+  
+  # Fit model
+  m <- lm(f, data = hw)
+  s <- summary(m)
+  
+  coefs <- coef(s)
+  
+  # Extract values safely
+  est <- if (nrow(coefs) > 1) coefs[2, 1] else NA
+  pval <- if (nrow(coefs) > 1) coefs[2, 4] else NA
+  
+  # # Return as tibble (similar to data.frame, but prints more neatly and avoids some common issues with data types)
+  tibble(
+    Predictor = v,
+    Estimate = est,
+    p_value = pval,
+    R_sq = round(s$r.squared, 4)
+  )
+})
+
+results_table
+```
+
+This table allows us to compare predictors based on:
+
+- the direction of the relationship
+- the strength of the association ($R^2$)
+- statistical evidence ($p$-values)
+
+However, these are bivariate relationships. Each predictor is considered in isolation.
+
+This leads to an important question:
+
+> What happens when several predictors are included in the model at the same time?
+
+### Interpretation of Results
+
+Looking at the $R^2$ values, each predictor on its own explains only a small proportion of the variability in `Grade_course`.
+
+- **HW_minutes** explains about **6.64%** of the variation in `Grade_course` (the largest effect)
+- **GPA** explains about **2.94%**
+- The remaining predictors explain **almost none** of the variation (values close to $0$)
+
+This suggests that, individually, these variables are not very strong predictors of `Grade_course`.
+
+### What if we combine them?
+
+Even if we include all predictors in a single model, we should not expect a large improvement in explanatory power.
+
+The total proportion of variability explained is likely to remain relatively low, probably in the range of **around 5–10% overall**.
+
+This is because:
+- Each predictor contributes only a small amount of information
+- None of the variables shows a strong relationship with `Grade_course` on its own
+
+### Key takeaway
+
+- These predictors together are likely to explain only a small fraction of the variability in `Grade_course`
+- Most of what determines `Grade_course` is not captured by these variables
+- **HW_minutes appears to be the most informative predictor**, but its effect is still modest
+
+# Multiple Regression Model: General Structure
+
+So far, we have explored simple regression models, where a single predictor is used to explain variation in an outcome. Multiple regression extends this idea by allowing **several predictors to be included at once**.
+
+## The Additive Model
+
+The basic idea in regression modelling is that we are trying to explain the behaviour of a variable of interest.
+
+Let:
+
+- `Grade_course` be our **response variable** (what we want to explain)
+- `HW_minutes`, `GPA`, `ACT`, `Midnight_deadline`, `Q3_deadline_stress` be our **explanatory variables**, also known as **predictors**
+
+In general, we can write this idea as:
+
+$$
+Y = f(X_1, X_2, X_3, \dots, X_k)
+$$
+
+This simply expresses the belief that the outcome depends on several variables.
+
+::: {.callout-important}
+This is a **modelling assumption**. It reflects our understanding or hypothesis about how the data-generating process works, and it may or may not be correct.
+:::
+
+## The Linear (Additive) Form
+
+The simplest way to model this relationship is to assume that the predictors combine in a **linear and additive way**:
+
+$$
+Y = b_0 + b_1 X_1 + b_2 X_2 + \dots + b_k X_k
+$$
+
+Each coefficient has a clear interpretation:
+
+- $b_0$: intercept (baseline level of the outcome)  
+- $b_j$: change in $Y$ associated with a one-unit increase in $X_j$, **holding all other variables constant**
+
+Here, the index $j$ identifies the explanatory variables included in the model:
+
+$$
+j = 1, 2, \dots, k
+$$
+
+where $k$ is the total number of predictors.
+
+In our case, we have:
+
+$$
+k = 5
+$$
+
+so:
+
+$$
+j = 1, 2, 3, 4, 5
+$$
+
+## The Role of Randomness
+
+In practice, we cannot perfectly explain the outcome. There will always be variation that is not captured by our predictors.
+
+We account for this by adding a random component:
+
+$$
+Y = b_0 + b_1 X_1 + b_2 X_2 + \dots + b_k X_k + e
+$$
+
+where:
+
+- $e$ is the **error term**  
+- it represents all the factors affecting $Y$ that are not included in the model  
+
+We typically assume:
+
+$$
+e \sim N(0, \sigma^2)
+$$
+
+This means the unexplained variation is centred around zero and has some variability. This captures everything we didn’t measure or include in the model.
+
+## Key Idea
+
+- A regression model is **not the truth**, but a **simplified representation of reality**  
+- Our goal is to assess whether this representation is useful for explaining variation in the outcome  
+
+With this structure in place, we can now fit a multiple regression model and examine how these predictors work **together**.
+
+## Linking to Our Example
+
+In our case, this model becomes:
+
+$$
+\text{Grade\_course} = b_0 + b_1(\text{HW\_minutes}) + b_2(\text{GPA}) + b_3(\text{ACT}) + b_4(\text{Midnight\_deadline}) + b_5(\text{Q3\_deadline\_stress}) + e
+$$
+
+This model allows us to assess the unique contribution of each predictor while controlling for the others, and to see how well they work together to explain variation in `Grade_course`.
+
+
+## A quick look at relationships in the data
+
+Before diving into the regression output, it’s useful to take a step back and look at how the variables relate to each other.
+
+This is not a formal test, just a way of building some intuition.
+
+```{r}
+library(GGally)
+
+vars <- hw[, c("Grade_course", "HW_minutes", "GPA", "ACT", "Q3_deadline_stress")]
+
+ggpairs(vars)
+```
+
+This plot gives us a quick overview of:
+
+- how each predictor relates to the outcome
+- how the predictors relate to each other
+
+### What are we looking for?
+
+At this stage, we are not trying to draw firm conclusions. Instead, we are asking:
+
+- Do the relationships look roughly linear?
+- Are any predictors strongly related to each other?
+- Do any variables look completely unrelated to the outcome?
+
+For example:
+
+- If two predictors are strongly correlated, they may be capturing similar information
+- If a predictor shows no relationship with the outcome, it may not contribute much to the model
+
+This kind of overlap between predictors is something we will come back to later, it is related to the idea of <span style="color:red;"><strong>multicollinearity</strong></span>.
+
+### A first impression
+
+Before moving on, it’s worth pausing to note a few broad patterns in the plot.
+
+There appears to be a **weak positive relationship** between `HW_minutes` and `Grade_course`, which is consistent with what we saw earlier. Students who spend more time on homework tend, on average, to achieve slightly higher grades, although the relationship is not particularly strong.
+
+`GPA` also shows a **positive association** with course performance, which aligns with our expectation that prior academic ability plays a role.
+
+In contrast, `ACT` and `Q3_deadline_stress` do not show any clear relationship with `Grade_course`. The points are quite scattered, suggesting that these variables may not contribute much on their own.
+
+Looking across the predictors, there is a **moderate relationship between `GPA` and `ACT`**, which suggests that these variables may be capturing similar aspects of academic ability. This is something to keep in mind when we interpret the multiple regression model.
+
+Overall, the relationships we see are fairly weak, which reinforces the idea that no single variable strongly explains course performance on its own.
+
+With that initial impression in mind, we now turn to what we should be looking for more systematically.
+
+# Fitting the Multiple Regression Model
+
+Up to this point, we’ve been looking at each predictor separately.
+
+That’s useful, but it’s a bit like trying to understand a student’s performance by looking at just one aspect of their behaviour at a time. In reality, all of these factors are happening together.
+
+So the natural next step is to bring everything into the model at once and let the data "sort it out". We are now modelling course performance using five different factors at once: homework time, GPA, ACT scores, deadline timing, and stress.
+
+
+```{r}
+model_multi <- lm(
+  Grade_course ~ HW_minutes + GPA + ACT + Midnight_deadline + Q3_deadline_stress,
+  data = hw
+)
+
+summary(model_multi)
+```
+
+What this model is doing is fairly straightforward in spirit.
+
+Instead of asking:
+
+“How does homework time relate to grades?”
+
+we are now asking:
+
+> How does homework time relate to grades when we take into account other factors like GPA, ACT, deadlines, and stress?
+
+And we’re asking the same question for each variable in turn.
+
+When we say “account for other factors”, what we really mean is this: we are trying to compare students who are similar in terms of GPA, ACT, deadlines, and stress, and then ask whether differences in homework time are still associated with differences in grades.
+
+In other words, we are no longer comparing all students to each other. We are comparing like with like.
+
+So rather than each predictor competing for attention one at a time, they are now all in the room together and the model is trying to figure out how much each one contributes once the others are already taken into account.
+
+# Does the Model Make Sense?
+
+Now that we have fitted the model, the first question is not statistical, it’s conceptual.
+
+Before looking at p-values or tests, we should ask:
+
+> Do the results actually make sense?
+
+This might sound obvious, but it’s an important step that is often skipped.
+
+A regression model will always produce numbers. The real question is whether those numbers tell a story that is believable.
+
+## Looking at Signs and Sizes
+
+Start by looking at the **direction** of each relationship.
+
+- Does more homework time lead to higher grades, or lower grades?
+- Does higher GPA correspond to better performance?
+- Does stress appear to help or harm performance?
+
+These are things we usually have some intuition about.
+
+For example, we would generally expect:
+
+- a **positive relationship** between GPA and course performance  
+- a **positive relationship** between homework time and grades (at least up to a point)  
+- possibly a **negative relationship** between stress and performance  
+
+If the model gives us results that go strongly against these expectations, that doesn’t automatically mean the model is wrong, but it does mean we should pause and think more carefully.
+
+## Why might things look different?
+
+Sometimes relationships change once other variables are included.
+
+A variable that looked important on its own may become weaker once we control for other factors.
+
+For example:
+
+- Homework time might look strongly related to grades on its own  
+- But once we account for GPA, that relationship might shrink  
+
+This doesn’t mean homework time doesn’t matter, it may simply mean that part of its effect was actually capturing differences in academic ability.
+
+This is one of the key ideas in multiple regression:
+
+> the effect of a variable is always interpreted **in the presence of the others**
+
+## A useful habit
+
+A good way to approach this is:
+
+1. Look at each variable **on its own** (which we already did)  
+2. Look at all variables **together** (what we have just done)  
+3. Ask whether the story is **consistent across both views**
+
+If things broadly line up, that’s reassuring.
+
+If they don’t, that’s not a problem, it’s a signal that something more interesting may be going on in the data.
+
+At this stage, we are not trying to make final conclusions.
+
+We are simply asking:
+
+> Does this model describe a story that we can reasonably believe?
+
+
+# Is the Model Useful Overall?
+
+Once we are satisfied that the model at least *makes sense*, the next question is:
+
+> Does this model actually explain anything?
+
+In other words, even if the coefficients look reasonable, we want to know whether the model as a whole is doing a useful job.
+
+## Looking at $R^2$
+
+A first way to think about this is through the coefficient of determination, $R^2$.
+
+Recall that $R^2$ measures how much of the variation in the response variable is explained by the model.
+
+- If $R^2$ is close to 1 (or 100%), the model explains most of what is going on  
+- If $R^2$ is close to 0, the model explains very little  
+
+In our context, this tells us:
+
+> How much of the variation in course performance can be explained by homework time, GPA, ACT, deadlines, and stress *together*?
+
+It is important to keep expectations realistic here.
+
+Student performance is influenced by many factors we cannot observe or measure, such as motivation, prior knowledge, personal circumstances, and so on.
+
+So even a “good” model may only explain a modest proportion of the variation.
+
+## A small but useful model
+
+If the $R^2$ value is relatively small, this does not automatically mean the model is useless.
+
+It simply means that:
+
+- the predictors explain **some part** of the variation  
+- but a large portion remains unexplained  
+
+In practice, especially in social science settings, this is very common. The goal is not to explain everything, but to identify **meaningful patterns**.
+
+## The F-test: does anything matter at all?
+
+While $R^2$ gives us a descriptive measure, the F-test provides a formal way to assess the model.
+
+The idea behind the F-test is quite simple.
+
+We compare two situations:
+
+- A model with **no predictors at all** (just a flat mean)  
+- Our fitted model with all predictors included  
+
+And we ask:
+
+> Does adding these predictors improve our ability to explain the data?
+
+Formally, the hypotheses are:
+
+  $H_0: b_1 = b_2 = \dots = b_k = 0$    
+  $H_1: \text{at least one } b_j \neq 0$
+
+The decision rule is:
+
+- if $F_{\text{calc}} > F_{\text{crit}}$, reject $H_0$
+- if $F_{\text{calc}} \leq F_{\text{crit}}$, do not reject $H_0$
+
+Equivalently, we can use the p-value:
+
+- if $p < 0.05$, reject $H_0$
+
+
+```{r}
+# Parameters
+df1 <- 5
+df2 <- 94
+alpha <- 0.05
+
+f_crit <- qf(1 - alpha, df1, df2)
+
+x <- seq(0, 6, length.out = 1000)
+y <- df(x, df1, df2)
+
+# Plot WITHOUT default x-axis
+plot(x, y, type = "l", lwd = 2,
+     main = "F Distribution (Overall Model Test)",
+     xlab = "", ylab = "Density",
+     xaxt = "n")
+
+# Custom x-axis
+axis(1,
+     at = c(0, f_crit),
+     labels = c("0", expression(F[crit])))
+
+# Shade rejection region
+polygon(c(f_crit, x[x >= f_crit], 6),
+        c(0, y[x >= f_crit], 0),
+        col = "lightgray", border = NA)
+
+# Red critical line
+abline(v = f_crit, col = "red", lwd = 2)
+
+# Arrows
+arrows(0.2, max(y)*0.75, f_crit - 0.2, max(y)*0.75, length = 0.08)
+arrows(5.5, max(y)*0.75, f_crit + 0.2, max(y)*0.75, length = 0.08)
+
+# Labels
+text(2, max(y)*0.8, expression(H[0]))
+text(5.2, max(y)*0.8, expression(H[1]))
+text(5, max(y)*0.05, "5%")
+```
+$$
+\text{Reject } H_0 \text{ if } F_{calc} > F_{crit}
+$$
+
+If the F-statistic is large enough (or equivalently, if the p-value is small, i.e. $p < 0.05$), we reject $H_0$.
+
+This tells us that:
+
+> the model, taken as a whole, provides useful information about the response variable
+
+## A small adjustment: $R^2_{\text{adj}}$
+
+There is one small complication with $R^2$.
+
+If we add more predictors to a model, $R^2$ will never go down. Even variables that add very little can make the value increase slightly.
+
+This means that $R^2$ can sometimes give an overly optimistic view of how good the model is.
+
+To deal with this, we also look at the **adjusted** coefficient of determination, written as $R^2_{\text{adj}}$.
+
+Adjusted $R^2$ takes into account:
+
+- the number of predictors in the model  
+- the sample size  
+
+and effectively penalises the model for including variables that do not contribute much.
+
+From the regression output, we have:
+
+- $R^2 = 0.091$  
+- $R^2_{\text{adj}} = 0.017$  
+
+This is quite revealing.
+
+While the model appears to explain about 9% of the variation in `Grade_course`, once we adjust for the number of predictors, this drops to around 2%.
+
+So the adjusted value suggests that some of the predictors are not adding much useful information.
+
+A good way to think about it is:
+
+> $R^2$ tells us how well the model fits, while $R^2_{\text{adj}}$ tells us how much of that fit we can actually trust.
+
+## Interpreting the F-test for our model
+
+From the regression output, we can extract the value of the overall F-statistic and its p-value.
+
+```{r}
+summary(model_multi)
+```
+Focusing on the bottom part of the output, we see:
+
+- $F_{\text{calc}} = 1.227$
+- degrees of freedom: $df_1 = 5$ and $df_2 = 61$
+- $p\text{-value} = 0.308$
+
+To carry out the F-test formally, we also need the critical value from the $F$ distribution at the 5% significance level. Using the regression output, we compute the key quantities for the F-test:
+
+```{r}
+f_calc <- summary(model_multi)$fstatistic[1]
+df1 <- summary(model_multi)$fstatistic[2]
+df2 <- summary(model_multi)$fstatistic[3]
+
+f_crit <- qf(0.95, df1, df2)
+```
+
+Which gives $F_{\text{crit}} = 2.366$. Since $F_{\text{calc}} < F_{\text{crit}}$, we do not reject $H_0$. Equivalently, the p-value is greater than 0.05, which leads to the same conclusion.
+
+This suggests that, taken together, the predictors do **not** provide strong statistical evidence of a relationship with `Grade_course`. In other words, the model as a whole does not significantly improve our ability to explain variation in course performance. This is an important result, and it requires some careful interpretation.
+
+Even though some predictors showed weak relationships on their own, once we consider them together there is not enough evidence to say that the overall model is useful. At this point, we need to be careful. If the overall model is not significant, we should avoid making strong claims about individual predictors. However, it is still useful to look at the separate coefficients to see whether any patterns emerge.
+
+This brings us to the next step: the individual t-tests.
+
+# Looking at Predictors Individually: t-tests
+
+Up to this point, we have asked a broad question:
+
+> Does the model, as a whole, explain anything?
+
+The F-test gave us an answer to that.
+
+Now we shift focus slightly and ask a more detailed question:
+
+> Which variables, if any, are actually contributing to the model?
+
+To answer this, we look at **t-tests for individual coefficients**.
+
+## The idea behind the t-test
+
+For each predictor, we test whether its coefficient is equal to zero.
+
+For a given variable $X_j$, the hypotheses are:
+
+$$
+H_0: b_j = 0
+$$
+
+$$
+H_1: b_j \neq 0
+$$
+
+If $b_j = 0$, this means that once we account for the other variables in the model, $X_j$ has no relationship with the response.
+
+If we reject $H_0$, this suggests that the predictor contributes to explaining variation in the outcome.
+
+## What does "holding other variables constant" mean?
+
+This is the key idea in multiple regression.
+
+When we test a coefficient, we are not asking whether the variable is related to the outcome *on its own*.
+
+We are asking:
+
+> Is this variable still related to the outcome **after accounting for all the others**?
+
+So for example:
+
+- Does homework time matter **once GPA, ACT, deadlines, and stress are already taken into account?**
+
+This is what makes multiple regression powerful — it allows us to separate out the *unique* contribution of each variable.
+
+## Visualising the decision rule
+
+The t-test uses a **two-sided rejection region**.
+
+```{r}
+# Parameters
+df_t <- model_multi$df.residual
+alpha <- 0.05
+
+t_crit <- qt(1 - alpha/2, df_t)
+
+x <- seq(-4, 4, length.out = 1000)
+y <- dt(x, df_t)
+
+plot(x, y, type = "l", lwd = 2,
+     main = "t Distribution (Individual Coefficient Test)",
+     xlab = "", ylab = "Density",
+     xaxt = "n")
+
+axis(1,
+     at = c(-t_crit, 0, t_crit),
+     labels = c(expression(-t[crit]), "0", expression(t[crit])))
+
+polygon(c(-4, x[x <= -t_crit], -t_crit),
+        c(0, y[x <= -t_crit], 0),
+        col = "lightgray", border = NA)
+
+polygon(c(t_crit, x[x >= t_crit], 4),
+        c(0, y[x >= t_crit], 0),
+        col = "lightgray", border = NA)
+
+abline(v = c(-t_crit, t_crit), col = "red", lwd = 2)
+
+arrows(-t_crit + 0.2, max(y)*0.75, t_crit - 0.2, max(y)*0.75,
+       length = 0.08, code = 3)
+
+arrows(-3.5, max(y)*0.75, -t_crit - 0.2, max(y)*0.75, length = 0.08)
+arrows(3.5, max(y)*0.75, t_crit + 0.2, max(y)*0.75, length = 0.08)
+
+text(0, max(y)*0.82, expression(H[0]))
+text(-3, max(y)*0.78, expression(H[1]))
+text(3, max(y)*0.78, expression(H[1]))
+
+text(-t_crit - 0.6, max(y)*0.12, "2.5%")
+text(t_crit + 0.6, max(y)*0.12, "2.5%")
+```
+Values of the t-statistic that fall near zero are consistent with $H_0$.
+
+Values that fall into the shaded regions are considered unlikely under $H_0$, and lead us to reject it.
+
+So the practical rule is:
+
+- if $|t_{\text{calc}}| > t_{\text{crit}}$, reject $H_0$
+- if $|t_{\text{calc}}| \leq t_{\text{crit}}$, do not reject $H_0$
+
+Equivalently, we can use the p-value:
+
+- if $p < 0.05$, reject $H_0$
+- if $p \geq 0.05$, do not reject $H_0$
+
+## Looking at the regression output
+
+We now return to the coefficient table from our model:
+
+```{r}
+summary(model_multi)
+```
+Each row corresponds to a predictor, and for each one we are given:
+
+- the estimated coefficient
+- the standard error
+- the t-statistic
+- the p-value
+
+These allow us to carry out the individual t-tests.
+
+### Interpreting the results
+
+Looking at the p-values for each predictor, we see that:
+
+- HW_minutes: $p = 0.228$
+- GPA: $p = 0.161$
+- ACT: $p = 0.811$
+- Midnight_deadline: $p = 0.835$
+- Q3_deadline_stress: $p = 0.570$
+
+All of these values are greater than $0.05$. This means that, for each predictor, we do not reject $H_0$.
+
+**What does this mean?**
+
+Individually, none of the predictors provides strong evidence of a relationship with `Grade_course` once the other variables are taken into account. This is consistent with what we saw earlier:
+
+- weak relationships in the scatterplots
+- low $R^2$ values
+- a non-significant F-test
+
+All of these pieces are telling a similar story. 
+
+### A subtle but important point
+
+> Even though some variables (like `HW_minutes` and `GPA`) showed weak positive relationships earlier, these effects are not strong enough to stand out once we control for the other predictors.
+
+This highlights an important idea:
+
+> A variable can look important on its own, but not be statistically significant in a multiple regression model.
+
+One reason for this is that predictors can share overlapping information. When this happens, it becomes harder for the model to isolate the effect of each variable separately. This issue is related to <span style="color:red;"><strong>multicollinearity</strong></span>, which we will explore in more detail next week.
+
+**Final takeaway**
+
+Putting everything together:
+
+- The model explains only a small proportion of the variation ($R^2$ is low)
+- The adjusted $R^2$ suggests that much of this explanation is weak
+- The F-test tells us the model is not significant overall
+- The t-tests show that no individual predictor stands out
+
+So the overall conclusion is: 
+
+> While there are some weak patterns in the data, there is not enough statistical evidence to conclude that these predictors meaningfully explain variation in course performance.
+
+This does not mean that these factors are unimportant in reality. Rather, in this dataset, their effects appear to be small relative to the variability in the outcome. This is a common outcome in real-world data:
+
+> The predictors may each play a role, but their individual contributions are small and difficult to distinguish once we consider them together.
+
+This raises an important question:
+
+> Is the problem the *data*, or is it the *model*?
+
+This is not a failure of regression, but a reminder that simple models cannot always capture complex reality.
+
+# Where do we go from here?
+
+In practice, it is often a bit of both.
+
+At this point, we have done everything “by the book”:
+
+- explored the data  
+- fitted a multiple regression model  
+- assessed the model using $R^2$, the F-test, and t-tests  
+
+And yet, the model did not perform particularly well.
+
+This raises an important question:
+
+> Is the problem the *data*, or is it the *model*?
+
+In practice, it is often a bit of both.
+
+## Why might our model be struggling?
+
+There are several reasons why our results may be weak:
+
+### 1. Overlapping information between predictors
+
+Some variables may be capturing similar underlying concepts.
+
+For example, `GPA` and `ACT` both reflect aspects of academic ability.
+
+When predictors are strongly related to each other, it becomes difficult for the model to separate their individual effects. This issue is known as <span style="color:red;"><strong>multicollinearity</strong></span>.
+
+### 2. Categorical variables need special treatment
+
+Not all predictors are numerical.
+
+Variables like `Midnight_deadline` represent categories rather than quantities.
+
+To include them properly in a regression model, we need to use **dummy variables**, which allow us to compare groups within the model.
+
+### 3. Relationships may not be purely linear
+
+So far, we have assumed that all relationships are linear and additive.
+
+But in reality:
+
+- the effect of homework time may level off after a certain point  
+- stress might have a non-linear impact (too little vs too much)  
+- the effect of one variable may depend on another  
+
+For example:
+
+> Does homework time matter more for students with lower GPA?
+
+This type of question leads us to **interaction effects**.
+
+We can also allow for curvature using **polynomial terms**, which let relationships bend rather than remain straight lines.
+
+## The key idea
+
+The multiple regression model we used is a useful starting point, but it is still quite simple.
+
+To better capture real-world relationships, we often need to extend it.
+
+In the next session, we will build on this model by addressing these limitations.
+
+We will look at:
+
+- how to detect and interpret <span style="color:red;"><strong>multicollinearity</strong></span>  
+- how to include **categorical variables** using dummy coding  
+- how to model **non-linear relationships**  
+- how to introduce **interactions** between variables  
+
+The goal is to move from a basic model to a more flexible one that better reflects the complexity of real data.
+
+::: {.callout-important}
+> A model is only as good as the assumptions we make.
+:::
+
+Next week, we start learning how to relax those assumptions.

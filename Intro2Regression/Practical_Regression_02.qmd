@@ -1,0 +1,172 @@
+---
+title: "Practical Exercise: Multiple Regression and Model Evaluation"
+subtitle: "Homework Deadlines and Student Performance"
+author: "Tatjana Kecojevic"
+format: 
+  pdf:
+    documentclass: article
+    fontsize: 11pt
+    tbl-colwidths: [50, 110]
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+# Introduction
+
+In this practical, you will extend your analysis of the homework dataset by fitting and interpreting a **multiple regression model**.
+
+Last week, we focused on simple relationships between two variables.
+
+This week, we move one step further and ask:
+
+> **What happens when we consider several factors at the same time?**
+
+Our goal is to:
+
+-   build a multiple regression model
+-   interpret its results
+-   evaluate whether the model is useful
+
+# Step 1: Load and Prepare the Data
+
+Before we begin, we need to make sure the data is in the correct format.
+
+```{r}
+# Load the dataset
+hw <- read.csv("https://raw.githubusercontent.com/TanjaKec/mydata/master/HW_R.csv")
+
+hw$HW_minutes <- as.numeric(hw$HW_minutes)
+hw$GPA <- as.numeric(hw$GPA)
+hw$ACT <- as.numeric(hw$ACT)
+hw$Q3_deadline_stress <- as.numeric(hw$Q3_deadline_stress)
+hw$Midnight_deadline <- as.factor(hw$Midnight_deadline)
+
+# Inspect structure
+str(hw)
+```
+
+# Step 2: Explore the Data
+
+Before fitting any model, it is always a good idea to look at the data first. This helps us build intuition about the relationships we might expect to see.
+
+```{r}
+library(GGally)
+
+vars <- hw[, c("Grade_course", "HW_minutes", "GPA", "ACT", "Q3_deadline_stress")]
+ggpairs(vars)
+```
+
+Take a moment to scan the plots. You are not looking for exact answers yet, just general patterns.
+
+Questions:
+
+1.  Which variables seem related to `Grade_course`? \vspace{2cm}
+2.  Are any predictors related to each other? \vspace{2cm}
+3.  Are the relationships strong or weak? \vspace{2cm}
+
+# Step 3: Fit the Model
+
+Now we move from exploration to modelling. Instead of looking at variables one at a time, we include them all together in a single model.
+
+```{r}
+model_multi <- lm(
+  Grade_course ~ HW_minutes + GPA + ACT + Midnight_deadline + Q3_deadline_stress,
+  data = hw
+)
+
+summary(model_multi)
+```
+
+This allows us to ask a more realistic question:
+
+> **How does each variable relate to course performance once we account for the others?**
+
+Step 4: Coefficients
+
+The first part of the output tells us about the individual relationships. Each coefficient represents the effect of a variable holding the others constant.
+
+Questions:
+
+1.  What is the estimated effect of HW_minutes? \vspace{1.5cm}
+2.  What does the coefficient of GPA mean? \vspace{1.5cm}
+3.  Do the signs of the coefficients make sense? \vspace{2cm}
+
+Take a moment to compare these results to what you saw in the plots.
+
+# Step 5: Model Fit
+
+Next, we step back and look at the model as a whole. We ask:
+
+> **How much of the variation in course performance does this model actually explain?**
+
+Questions:
+
+1.  What is $R^2$? \vspace{1cm}
+2.  What is $R^2_{\text{adj}}$? \vspace{1cm}
+3.  Why is adjusted $R^2$ lower? \vspace{2cm}
+
+This is an important idea:
+
+-   $R^2$ tells us how well the model fits
+-   $R^2_{\text{adj}}$ tells us how much of that fit we can trust
+
+# Step 6: The F-test
+
+We now move from description to formal testing. The F-test asks:
+
+> **Does this model, taken as a whole, explain anything?**
+
+Questions:
+
+1.  What is the F-statistic? \vspace{1cm}
+2.  What is the p-value? \vspace{1cm}
+3.  Do we reject $H_0$? \vspace{2cm}
+
+Interpret your answer:
+
+Does the model provide evidence of a relationship with Grade_course? \vspace{2cm}
+
+# Step 7: Individual t-tests
+
+Even if the overall model is weak, we can still look at individual variables.
+
+Each t-test asks:
+
+> **Does this variable contribute to the model, once the others are included?**
+
+Questions:
+
+1.  Which variables are significant? \vspace{2cm}
+2.  Do any predictors clearly stand out? \vspace{2cm}
+3.  How do these results compare to what you saw earlier? \vspace{2cm}
+
+# Final Reflection
+
+Now step back and look at the full picture.
+
+What do all of these results tell us? \vspace{3cm}
+
+You may find that:
+
+-   relationships exist, but are weak
+-   no single variable dominates
+-   the model explains only a small amount of variation
+
+This is not unusual. This is not a failure of regression, but a reminder that simple models cannot always capture complex reality.
+
+# Looking Ahead
+
+This raises an important question:
+
+Is the issue the data, or the model?
+
+In the next session, we will build on this by exploring:
+
+-   multicollinearity (when predictors overlap)
+-   categorical variables and dummy coding
+-   non-linear relationships
+-   interactions between variables
+
+The goal is to move from a simple model to a more realistic one.

@@ -1,0 +1,888 @@
+---
+title: "Assessing the Regression Model and Extending to Multiple Regression"
+subtitle: "Homework Deadlines and Student Performance"
+author: "Tatjana Kecojevic"
+date: last-modified
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    code-fold: true
+    code-summary: "Show/Hide Code"
+    smooth-scroll: true
+    page-layout: article
+
+execute:
+  echo: true
+  warning: false
+  message: false
+  freeze: auto
+---
+
+::: callout-tip
+## Learning Objectives
+
+By the end of this session, you should be able to:
+
+-   Fit and interpret a simple linear regression model
+
+-   Assess model fit using R² and residuals
+
+-   Extend a model to multiple regression
+
+-   Interpret coefficients in a multivariate context
+:::
+
+# Introduction
+
+In this session, we analyse how **homework deadlines (HD)** relate to **student performance**.\
+We begin with a simple regression model and then extend it to multiple regression.
+
+Understanding how deadlines affect performance is important for both students and educators. Do later deadlines help students perform better, or do they increase procrastination and stress? In this session, we explore these questions using regression analysis.
+
+# Load and Inspect the Data
+
+```{r}
+hw <- read.csv("https://raw.githubusercontent.com/TanjaKec/mydata/master/HW_R.csv")
+str(hw)
+summary(hw)
+```
+
+### Key Variables
+
+-   `Grade_course`: overall course performance (dependent response variable)
+
+-   `HW_minutes`: time spent on homework (effort; time investment; (independent predictor explanatory variable)
+
+-   `GPA, ACT`: academic ability (prior academic ability; (independent predictor explanatory variable)) 
+
+-   `Midnight_deadline`: deadline timing (independent predictor explanatory variable)
+
+-   `Q3_deadline_stress`: perceived stress related to deadlines (subjective response; independent predictor explanatory variable)
+
+We are particularly interested in whether `Midnight_deadline` influences performance, controlling for other factors.
+
+### Exploring Relationships Between Variables
+
+Before fitting a regression model, it is important to explore how the key variables are related.
+
+#### Step 1: Focus on Numeric Variables
+
+Not all variables can be included in a correlation matrix, as correlation requires numeric data. We therefore begin by selecting the appropriate subset of variables. Even if data appears numeric, it is important to check its type before proceeding with the analysis.
+
+```{r}
+# Select variables
+vars_num <- hw[, c("Grade_course", "HW_minutes", "GPA", "ACT")]
+
+# Convert ALL to numeric (robust fix)
+vars_num <- data.frame(lapply(vars_num, function(x) as.numeric(as.character(x)))) # This line makes sure every column is treated as a number so we can safely compute correlations.
+```
+
+::: callout-note
+**Note**
+
+`vars_num <- data.frame(lapply(vars_num, function(x) as.numeric(as.character(x))))`
+
+This step ensures that all variables are treated as numeric. When data is imported (e.g. from a CSV file), some variables that look like numbers may actually be stored as text or factors.
+
+The code applies a conversion to each column, first turning values into character format (to avoid factor issues), and then into numeric format, so that calculations such as correlations can be performed correctly.
+
+Step-by-step breakdown:
+
+- lapply(vars_num, ...): applies a function to each column in the dataset
+- function(x): defines a function that operates on each column (x)
+- as.character(x): converts the column to character format (important when variables are stored as factors)
+- as.numeric(...): converts the values into numeric form
+- data.frame(...): puts everything back into a clean data frame
+:::
+
+```{r}
+# Check conversion worked
+sapply(vars_num, class)
+
+# Now run correlation
+cor(vars_num, use = "complete.obs")
+```
+
+::: callout-warning
+**Important:** When data is imported (e.g. from CSV files), numeric variables may be stored as text (character) or factors.
+
+If we try to compute correlations without converting them, R will return an error.
+:::
+
+#### Interpreting the Correlation Matrix
+
+`HW_minutes` and `Grade_course` (0.24) $\rightarrow$ weak positive relationship
+`GPA` and `Grade_course` (0.22) $\rightarrow$ higher GPA linked to better performance
+`ACT` and `Grade_course` (~0) $\rightarrow$ little to no relationship
+`GPA` and `ACT` (0.46) $\rightarrow$ moderate correlation (academic ability measures)
+
+These correlations suggest that both effort and prior ability may matter, but the relationships are relatively weak. This motivates the use of multiple regression analysis to better isolate the effect of each variable while controlling for others.
+
+---
+
+# Simple Regression Model
+
+We begin with a simple regression model examining the relationship between course performance and homework time.
+
+$$
+Y = b_0 + b_1 X + e
+$$
+with:
+
+- $Y = \text{Grade\_course}$
+- $X = \text{HW\_minutes}$
+```{r}
+model_1 <- lm(Grade_course ~ HW_minutes, data = hw)
+summary(model_1)
+```
+
+This model estimates how changes in homework time are associated with changes in course grade.
+
+**Interpreting the Output**
+
+The key components of the output are:
+
+- Intercept ($b_0$): predicted course grade when homework time is zero
+- Slope ($b_1$): change in course grade for each additional unit of homework time
+
+Think about it:
+
+- Is the relationship positive or negative?
+- Is the effect large or small?
+
+
+# Looking More Closely at the Fitted Model
+
+In the previous session, we learned how to formally assess a regression model using:
+
+- the coefficient of determination $R^2$ (how much variation is explained)
+- the F-test (whether a relationship exists)
+
+These tools tell us whether a model is **useful overall**.
+
+However, they do not tell us whether the model is **appropriate** or whether individual observations may be affecting the results.
+
+To gain a deeper understanding of the fitted model, we now examine:
+
+- the distribution of residuals (Q-Q plot)  
+- the uncertainty in the estimated coefficients (standard errors)  
+- the presence of unusual or influential observations (Cook’s distance)  
+
+
+# Residuals and the Error Term
+
+In the regression model, we write:
+
+$$
+Y = b_0 + b_1 X + e
+$$
+
+The term \( e \) represents the **error term**.
+
+It captures all the factors that influence the response variable but are **not included in the model**.
+
+For example, in our model:
+
+- study habits  
+- prior knowledge  
+- motivation  
+- external circumstances  
+
+are all part of the error term.
+
+## From Error to Residuals
+
+The error term \(e\) is theoretical, we cannot observe it directly.
+
+Instead, we estimate it using **residuals**:
+
+$$
+\text{Residual} = Y - \hat{Y}
+$$
+
+Residuals are therefore:
+
+- observable  
+- calculated from the data  
+- used to assess the model  
+
+The plot below illustrates residuals as the vertical distance between the observed values and the regression line.
+
+```{r}
+#| label: hw_residual_plot
+#| fig-cap: "Residuals shown as vertical distances from the regression line"
+
+# Fit the model if not already fitted
+model_1 <- lm(Grade_course ~ HW_minutes, data = hw)
+
+# Create fitted values
+hw$fitted <- fitted(model_1)
+
+plot(Grade_course ~ HW_minutes,
+     data = hw,
+     pch = 19,
+     col = rgb(70,130,180,120,maxColorValue = 255),
+     xlab = "Homework time (minutes)",
+     ylab = "Course grade",
+     main = "Residuals and the Regression Line")
+
+abline(model_1, col = "red", lwd = 2)
+
+segments(hw$HW_minutes,
+         hw$fitted,
+         hw$HW_minutes,
+         hw$Grade_course,
+         col = "darkgrey")
+```
+
+## Assumptions About the Error Term
+
+For linear regression to work well, we make assumptions about the error term:
+
+$$
+e \sim N(0, \sigma^2)
+$$
+This means:
+
+- mean of errors is **zero**  
+- errors are **normally distributed**  
+- variance is **constant**  
+
+Instead of thinking of the regression line as describing exact values, we should think of it as describing the **average (mean) outcome**.
+
+Individual observations vary around this mean, and it is this variation that is captured by the error term.
+
+## Linking $R^2$ to Residuals
+
+Recall that the coefficient of determination $R^2$ measures how much of the total variation in the response variable is explained by the regression model.
+
+$$
+R^2 =
+\frac{\text{Explained Variation}}{\text{Total Variation}}
+$$
+
+This means that the remaining variation,
+
+$$
+1 - R^2
+$$
+
+represents the **unexplained variation**.
+
+This unexplained variation is captured by the **residuals**.
+
+### A Visual Representation of the Regression Model
+
+The regression line represents the **mean response** for a given value of the explanatory variable.
+
+However, observations do not lie exactly on the line. For each value of $X$, the response variable $Y$ varies around this mean.
+
+In other words, for each value of $X$, we can think of $Y$ as having a **distribution** centred around the regression line.
+
+The figure below illustrates this idea:
+
+- The regression line shows the conditional mean $E(Y \mid X)$  
+- The vertical curves represent the conditional distributions of $Y \mid X$  
+- Each mean, denoted by $\mu_i$, lies on the regression line  
+
+These vertical spreads correspond to the error term in the regression model.
+
+The assumption  
+$$
+e \sim N(0, \sigma^2)
+$$  
+means that these distributions are approximately **normal**, centred on the line, with constant spread.
+
+```{r}
+#| label: regression-conditional-distribution
+#| fig-cap: "Regression line and conditional distributions of Y given X"
+#| fig-width: 7
+#| fig-height: 5
+
+set.seed(123)
+
+# --- Simulate clean data ---
+n <- 120
+x <- runif(n, 0, 10)
+b0 <- 2
+b1 <- 1.5
+sigma <- 1.2
+y <- b0 + b1 * x + rnorm(n, 0, sigma)
+
+# Fit model
+model_sim <- lm(y ~ x)
+
+# --- Base plot ---
+plot(x, y,
+     pch = 19,
+     col = rgb(70, 130, 180, 120, maxColorValue = 400),
+     xlab = "X",
+     ylab = "Y",
+     main = "Regression line and conditional distributions")
+
+# Add regression line
+abline(model_sim, col = "red", lwd = 2)
+
+# --- Function to draw LEFT-side densities ---
+draw_density_left <- function(x0, mean_y, sd_y, scale = 1.2) {
+  y_seq <- seq(mean_y - 3 * sd_y, mean_y + 3 * sd_y, length.out = 200)
+  dens <- dnorm(y_seq, mean = mean_y, sd = sd_y)
+  
+  # Draw density to the LEFT of the mean
+  lines(x0 - dens * scale, y_seq, col = "darkgreen", lwd = 2)
+}
+
+# --- Positions where we illustrate conditional distributions ---
+x_pos <- c(2, 5, 8)
+
+for (x0 in x_pos) {
+  
+  # Conditional mean
+  mean_y <- coef(model_sim)[1] + coef(model_sim)[2] * x0
+  
+  # Vertical dashed line
+  segments(x0, mean_y - 3 * sigma, x0, mean_y + 3 * sigma,
+           col = "grey50", lty = 2)
+  
+  # Draw density
+  draw_density_left(x0, mean_y, sigma)
+  
+  # Add μ_i label
+  text(x0 + 0.2, mean_y,
+       labels = expression(mu[i]),
+       col = "black",
+       cex = 1.2)
+}
+```
+
+This visualisation helps us connect the theoretical assumptions to what we observe in practice.
+
+Although we cannot see the true error term directly, we can observe how data points vary around the regression line. These deviations are captured by the residuals.
+
+
+## Why This Matters
+
+These assumptions ensure that:
+
+- our estimates are reliable  
+- hypothesis tests (t-tests, F-tests) are valid  
+- confidence intervals are meaningful  
+
+Since we cannot observe the true errors, we check these assumptions using **residuals**.
+
+A model with a high $R^2$ will tend to have:
+
+- smaller residuals  
+- observations closer to the regression line  
+
+A model with a low $R^2$ will tend to have:
+
+- larger residuals  
+- more unexplained variation  
+
+This is why analysing residuals is essential for understanding how well the model fits the data.
+
+This is why diagnostic tools such as the **Q-Q plot** are important.
+
+# The Normal Q-Q Plot
+
+One of the assumptions of linear regression is that the error terms are approximately normally distributed.
+
+Because the true error terms cannot be observed directly, we examine the **residuals** instead.
+
+A useful graphical tool for assessing this assumption is the **Normal Q-Q plot**.
+
+## What does “Q-Q” mean?
+
+Q-Q stands for **quantile–quantile**.
+
+The plot compares:
+
+- the quantiles of the observed residuals  
+- with the quantiles we would expect if the residuals came from a normal distribution  
+
+If the residuals are approximately normal, the points should fall close to a straight line.
+
+## Why is this important?
+
+The assumption of normality is important because it supports the validity of:
+
+- t-tests for individual coefficients  
+- F-tests for the overall model  
+- confidence intervals for parameters  
+
+In other words, if the residuals are very far from normal, the formal statistical inference from the regression model may become less reliable.
+
+## Computing the Q-Q Plot in R
+
+```{r}
+#| label: qq-plot
+#| fig-cap: "Normal Q-Q plot of the residuals from the simple regression model"
+
+qqnorm(resid(model_1),
+       pch = 19,
+       col = "steelblue",
+       main = "Normal Q-Q Plot of Residuals")
+qqline(resid(model_1), col = "red", lwd = 2)
+```
+
+## How to interpret the plot
+
+The red line represents the pattern we would expect if the residuals followed a normal distribution.
+
+A helpful way to think about this is to imagine **stretching a rubber band tightly between the smallest and largest points**.  
+
+- If the residuals are normally distributed, the points should line up closely along this straight line  
+- If the points systematically bend away from the line, it means the distribution is not behaving as expected  
+
+In other words, the red line represents the **ideal pattern**, and we are checking how closely the data follow it.
+
+When reading the plot:
+
+- if the points lie close to the red line, the normality assumption is reasonable  
+- if the points show a clear curved pattern, this suggests departures from normality  
+- if the points in the tails are far from the line, this may indicate extreme values or skewness  
+
+Small deviations from the line are common in real data and are usually not a serious problem.
+
+What matters most is whether there is a **systematic pattern**, rather than small random deviations.
+
+## What should we look for?
+
+A Q-Q plot may suggest several types of departures from normality:
+
+- **right skewness**: points bend away from the line in one direction  
+- **left skewness**: points bend away in the opposite direction  
+- **heavy tails**: points depart from the line at both ends  
+- **outliers**: one or two points lie far from the main pattern  
+
+These patterns indicate that the distribution of residuals differs from the normal distribution assumed in the model.
+
+## Building intuition
+
+Another way to think about the Q-Q plot is:
+
+- the horizontal axis shows what we would expect under a normal distribution  
+- the vertical axis shows what we actually observe  
+
+If the model assumptions are correct, these should match closely, which is why the points fall along a straight line.
+
+If they do not match, the points will drift away from the line, revealing where the model assumptions may not hold.
+
+## Practical interpretation
+
+In practice, regression models rarely produce residuals that are perfectly normal.
+
+The goal is not perfection, but whether the residuals are **approximately normal enough** for the model to provide reliable inference.
+
+If the points are broadly close to the line, then the normality assumption is usually considered acceptable.
+
+Large or systematic deviations, however, suggest that the model may not fully capture the structure in the data.
+
+## Link back to the model
+
+The Q-Q plot helps us assess whether the variation around the regression line behaves in a way that is consistent with the model assumptions.
+
+- the residual plot shows **how far observations lie from the line**  
+- the Q-Q plot shows **whether those deviations follow the expected distribution**  
+
+Together, these tools help us evaluate whether the regression model provides a reasonable description of the data.
+
+## Interpreting the Q-Q Plot for This Model
+
+Looking at the Q-Q plot above, we observe a clear departure from the straight reference line.
+
+Instead of closely following the line, the points display a noticeable **curved (S-shaped) pattern**, particularly in the lower and upper tails. The points at the extremes lie far from the line, indicating that the residuals include more extreme values than would be expected under a normal distribution.
+
+This suggests that the normality assumption may not hold for this model. In particular:
+
+- the residuals appear to have **heavy tails**, meaning there are more extreme observations than expected  
+- there may be **outliers or unusual observations** influencing the distribution  
+- the variability in the data is not fully captured by the model  
+
+Importantly, the pattern is not just random noise, it is **systematic**, which indicates that the deviation from normality is meaningful rather than incidental.
+
+This raises an important question:  
+
+> Are a small number of observations having a disproportionately large influence on the fitted regression model?
+
+To investigate this further, we now turn to a diagnostic measure specifically designed to identify such influential observations: **Cook’s distance**.
+
+# Influential Observations and Cook’s Distance
+
+The Q-Q plot suggested that something is not quite right, especially in the tails. 
+
+When we see that kind of pattern, a very natural question is:
+
+> Is this coming from the overall data… or just a few unusual observations?
+
+This is where Cook’s distance comes in.
+
+## What is Cook’s Distance?
+
+Cook’s distance helps us answer the following question:
+
+> “If I removed this one observation, how much would my regression line change?”
+
+Some observations sit comfortably within the general pattern of the data.  
+Others can be quite extreme, either because they have unusual values of \(X\), or because their outcome \(Y\) is far from what the model predicts.
+
+These are the observations that can **pull the regression line towards themselves**. 
+
+To see what this means, it helps to think through a few simple examples.
+
+Imagine most students in the dataset spend between 200 and 800 minutes on homework, and their grades follow a fairly clear upward trend. Now suppose there is one student who reports spending **3000 minutes** on homework.
+
+Even if their grade is not unusual, this point sits far to the right of all the others. Because the regression line tries to balance all observations, this single point can **tilt the line**, changing the slope to accommodate it.
+
+Now consider a different situation. Suppose most students who spend around 500 minutes on homework get grades around 70–80. But one student also spends 500 minutes and receives a grade of **20**.
+
+This point is not unusual in terms of homework time, but it lies far below the regression line. It creates a **large vertical pull**, dragging the line downward in that region.
+
+Finally, imagine a point that is unusual in both ways:
+
+- very large homework time  
+- and an unexpectedly low (or high) grade  
+
+This type of observation can be especially influential, because it both **sits far away horizontally** and **has a large residual**.
+
+```{r}
+#| label: influence-examples
+#| fig-cap: "Illustration of different types of influential observations"
+#| fig-width: 9
+#| fig-height: 4
+
+set.seed(123)
+
+# Base data (nice linear pattern)
+n <- 40
+x <- runif(n, 200, 800)
+y <- 50 + 0.05 * x + rnorm(n, 0, 5)
+
+par(mfrow = c(1, 3))
+
+# -------------------------
+# 1. High leverage point
+# -------------------------
+x1 <- c(x, 1500)   # far in X
+y1 <- c(y, 120)    # not extreme in Y
+
+model1 <- lm(y1 ~ x1)
+
+plot(x1, y1,
+     pch = 19,
+     col = c(rep("steelblue", n), "red"),
+     main = "High leverage (far in X)",
+     xlab = "Homework time",
+     ylab = "Grade")
+
+abline(model1, col = "red", lwd = 2)
+text(x1[n+1], y1[n+1],
+     labels = "influential",
+     pos = 2,   # LEFT side
+     col = "black")
+
+# -------------------------
+# 2. Large residual
+# -------------------------
+x2 <- c(x, 500)    # typical X
+y2 <- c(y, 20)     # very low Y
+
+model2 <- lm(y2 ~ x2)
+
+plot(x2, y2,
+     pch = 19,
+     col = c(rep("steelblue", n), "red"),
+     main = "Large residual (far in Y)",
+     xlab = "Homework time",
+     ylab = "Grade")
+
+abline(model2, col = "red", lwd = 2)
+text(x2[n+1], y2[n+1], labels = "influential", pos = 4)
+# -------------------------
+# 3. Both (very influential)
+# -------------------------
+x3 <- c(x, 1500)   # far in X
+y3 <- c(y, 20)     # extreme Y
+
+model3 <- lm(y3 ~ x3)
+
+plot(x3, y3,
+     pch = 19,
+     col = c(rep("steelblue", n), "red"),
+     main = "High leverage + large residual",
+     xlab = "Homework time",
+     ylab = "Grade")
+
+abline(model3, col = "red", lwd = 2)
+
+text(x3[n+1] - 60, y3[n+1] + 3,
+     labels = "influential",
+     col = "black",
+     adj = 1)
+
+par(mfrow = c(1,1))
+```
+
+In each plot, the red point represents a single observation that differs from the rest of the data.
+
+- In the first plot, the point is far away in the horizontal direction. It has high leverage and can tilt the regression line, even though its outcome is not unusual.
+
+- In the second plot, the point has a typical value of the explanatory variable but an unusual outcome. It creates a large residual and pulls the line vertically.
+
+- In the third plot, the point is unusual in both directions. This type of observation has the strongest influence, as it both sits far from the data and has a large residual.
+
+In each case, the regression line is doing its best to “fit everyone at once”. Most of the time, the data pull in a similar direction, so the line settles nicely in the middle. But when a point is very different from the rest, it can tug the line towards itself and shift the overall fit.
+
+This is exactly why we use measures like Cook’s distance: to identify observations that may be exerting a stronger influence on the fitted model than the others.
+
+## A simple way to think about it
+
+Imagine fitting a regression line using all the data. Now suppose we quietly remove one observation and refit the model.
+
+- If nothing really changes, that observation wasn’t very important  
+- If the slope or intercept noticeably shifts, then that observation was influential  
+
+Cook’s distance measures exactly this: **how much influence each point has on the fitted model**.
+
+## Computing Cook’s Distance in R
+
+```{r}
+#| label: cooks-distance
+#| fig-cap: "Cook's distance for each observation"
+
+cooks_d <- cooks.distance(model_1)
+
+plot(cooks_d,
+     type = "h",
+     main = "Cook's Distance",
+     ylab = "Cook's distance",
+     xlab = "Observation index")
+
+abline(h = 4/length(cooks_d), col = "red", lwd = 2, lty = 2)
+```
+
+## Interpreting the Cook’s Distance Plot
+
+In the Cook’s distance plot, each vertical line corresponds to one observation in the dataset. Most observations should have very small values, indicating that removing them would not substantially change the fitted regression model.
+
+What we are looking for are observations that stand out clearly from the rest. These are the points that may be having a disproportionate effect on the slope or intercept of the regression line.
+
+A common rule of thumb is to compare the Cook’s distance values to the threshold
+
+$$
+\frac{4}{n}
+$$
+
+shown by the dashed red line. Observations above this line are not automatically problematic, but they deserve closer attention.
+
+At this stage, the goal is not to remove observations automatically. Rather, it is to understand whether the conclusions of the model depend heavily on a small number of cases.
+
+With this general interpretation in mind, we can now return to the Cook’s distance plot for our own regression model and ask what it suggests about the influence of individual observations in this dataset.
+
+## Interpreting the Cook’s Distance Plot for This Model
+
+Looking at the Cook’s distance plot for our simple regression model, most observations have relatively small values. This suggests that, for the majority of cases, removing a single observation would not substantially change the fitted regression line.
+
+However, one observation stands out clearly above the others and slightly exceeds the common reference threshold \(4/n\), shown by the dashed red line. This indicates that this case may be more influential than the rest of the data.
+
+```{r}
+#| label: cooks-distance-annotated
+#| fig-cap: "Cook's distance with the most influential observation highlighted"
+
+cooks_d <- cooks.distance(model_1)
+i_max <- which.max(cooks_d)
+
+# Expand y-axis slightly
+y_max <- max(cooks_d) * 1.15
+
+plot(cooks_d,
+     type = "h",
+     ylim = c(0, y_max),
+     main = "Cook's Distance",
+     ylab = "Cook's distance",
+     xlab = "Observation index")
+
+abline(h = 4/length(cooks_d), col = "red", lwd = 2, lty = 2)
+
+points(i_max, cooks_d[i_max], col = "red", pch = 19)
+
+text(i_max, cooks_d[i_max],
+     labels = paste0("Obs ", i_max,
+                     "\n(x=", round(hw$HW_minutes[i_max],1),
+                     ", y=", round(hw$Grade_course[i_max],1), ")"),
+     pos = 3, col = "red", cex = 0.8)
+```
+
+Importantly, this does not automatically mean that the observation is an error or that it should be removed. Rather, it tells us that the fitted model may be somewhat sensitive to this particular case. In other words, part of the slope or intercept may be being shaped by one observation more strongly than by the others.
+
+Taken together with the Q-Q plot, this is useful evidence. The Q-Q plot suggested departures from normality in the tails, and the Cook’s distance plot now suggests that at least one observation may be contributing to that pattern.
+
+The main lesson here is not that the model has failed, but that it should be interpreted with some caution. Since at least one case appears to have a noticeable influence on the fitted line, it is also sensible to think about how precisely the model parameters have been estimated.
+
+This brings us back to the regression output, and in particular to the standard errors of the parameter estimates.
+
+# Standard Errors of the Parameter Estimates
+
+When we fit a regression model, we do not just obtain a slope and an intercept. We also obtain standard errors, which tell us how precisely those quantities have been estimated. This matters because standard errors underpin t-tests, p-values, and confidence intervals.
+
+A useful way to think about a standard error is as a measure of stability. If we were able to repeat the same study many times on different samples from the same population, we would not get exactly the same slope each time. Some variation would occur simply because we are working with sample data rather than the full population.
+
+The standard error tells us how much the estimated coefficient would typically vary from sample to sample.
+
+A small standard error suggests that the coefficient has been estimated fairly precisely. A large standard error suggests more uncertainty.
+
+This matters because the standard error is used to calculate:
+
+- t-statistics  
+- p-values  
+- confidence intervals  
+
+So when interpreting a regression coefficient, we should not only ask:
+
+> How large is the estimated effect?
+
+but also:
+
+> How precisely has that effect been estimated?
+
+## Linking back to our model
+
+Returning to our regression model, we can write the fitted relationship as:
+
+$$
+\widehat{Y} = b_0 + b_1 X
+$$
+
+where \(Y = \text{Grade\_course}\) and \(X = \text{HW\_minutes}\).
+
+Each of these estimated coefficients comes with its own standard error, which tells us how precisely it has been estimated.
+
+So far we’ve interpreted the slope… but there’s an important question we haven’t asked yet:
+**how reliable is this estimate?**
+
+Suppose the estimated slope is positive. This suggests that, on average, spending more time on homework is associated with higher course performance.
+
+However, this estimate on its own is not the full story.
+
+What really matters is **how precise this estimate is**, and that is where the standard error comes in.
+
+A helpful way to think about it is this:
+
+- If we repeated this study many times on different samples of students, we would not get exactly the same slope every time
+- The standard error tells us how much that estimated slope would typically vary from sample to sample
+
+So:
+
+- If the standard error is **small**, the estimate is relatively stable, and we can be more confident in both the direction and the size of the relationship
+- If the standard error is **large**, the estimate is more uncertain, and the true relationship could plausibly be weaker, or even different in sign
+
+In other words, the standard error tells us **how much trust we should place in the estimated effect**.
+
+Looking at the output for our model:
+
+```{r}
+summary(model_1)
+```
+
+we can focus on the coefficient for HW_minutes.
+
+From the output, we see:
+
+- Estimated slope: 0.0228
+- Standard error: 0.0094
+
+The estimated slope tells us that, on average, an additional minute spent on homework is associated with an increase of about 0.023 points in course grade.
+
+However, this estimate on its own is not the full story.
+
+The standard error of 0.0094 tells us how much this estimated slope would typically vary if we repeated the study on different samples of students.
+
+A helpful way to interpret this is:
+
+- the estimated effect is about 0.023
+- the uncertainty around this estimate is about 0.009
+
+So the effect is not large relative to its uncertainty, and there is some variability in how precisely we have estimated this relationship. A useful rule of thumb is to think in terms of a rough range:
+
+$$
+0.0228 \pm 2 \times 0.0094
+$$
+
+which gives approximately:
+
+$$
+(0.004,\ 0.042)
+$$
+
+This suggests that the relationship is estimated to be positive, but the exact size of the effect is somewhat uncertain. Based on this estimate and its standard error, the true effect could plausibly be as small as 0.004 or as large as 0.042.
+
+**Interpreting precision**
+
+This helps us refine our earlier interpretation:
+
+- The relationship between homework time and course performance appears positive
+- However, the effect is relatively small
+- And there is noticeable uncertainty around its size
+
+So rather than saying:
+
+- "Homework time increases performance"
+
+a more careful interpretation would be:
+
+- "There is evidence of a positive association, but the estimated effect is modest and not very precisely determined."
+
+This is important in the context of our earlier diagnostics. We saw that:
+
+- the Q-Q plot suggested some departures from normality
+- Cook’s distance indicated that at least one observation may be influential
+
+Both of these can affect how stable our estimates are. So when interpreting the coefficient for HW_minutes, we should keep in mind not only its estimated value, but also the uncertainty around it.
+
+This is exactly what the standard error helps us quantify.
+
+::: callout-important
+## Key Idea
+
+The standard error allows us to move beyond simply identifying a relationship, and instead assess:
+
+> **How reliable is the estimated effect?**
+
+In this case, the model suggests a positive relationship, but also reminds us to interpret the size of that effect with some caution.
+:::
+
+## What affects the size of the standard error?
+
+Standard errors are not fixed, they depend on the data. Three key factors play an important role:
+
+- **Sample size**  
+  With more observations, we typically obtain smaller standard errors, because the model has more information to work with.
+
+- **Variability in the data**  
+  If the data points are widely scattered around the regression line (large residuals), the standard errors will tend to be larger.
+
+- **Influential observations**  
+  As we saw with Cook’s distance, a small number of observations can have a noticeable impact on the fitted model. These points can also affect the standard errors, making the estimates appear more or less stable than they truly are.
+
+## Bringing everything together
+
+At this point, we can see how the different pieces of regression analysis fit together:
+
+- The regression line summarises the **average relationship** between variables  
+- Residuals show how individual observations deviate from that line  
+- The Q-Q plot helps us assess whether those deviations behave as expected
+- Cook’s distance identifies observations that may be exerting strong influence  
+- Standard errors tell us how **precisely** the model parameters have been estimated  
+
+Taken together, these tools allow us to move beyond simply fitting a model, and towards understanding how reliable and robust our conclusions are.
+
+Rather than asking only *“What is the relationship?”*, we are now also asking:
+
+> *“How much confidence can we place in what the model is telling us?”*
+
+The simple regression model has helped us understand the basic relationship between homework time and course performance, as well as the importance of checking assumptions and interpreting estimates with care. However, educational outcomes are rarely driven by a single factor. In the next handout, we extend this framework to multiple regression, where we examine the effect of one variable while holding others constant.
