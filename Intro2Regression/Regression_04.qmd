@@ -1,0 +1,956 @@
+---
+title: "Multiple Regression: Extending the Model"
+subtitle: "Understanding How Multiple Factors Shape Outcomes"
+author: "Tatjana Kecojevic"
+date: last-modified
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    code-fold: true
+    code-summary: "Show/Hide Code"
+    smooth-scroll: true
+    page-layout: article
+
+execute:
+  echo: true
+  warning: false
+  message: false
+  freeze: auto
+---
+
+## Introduction
+
+In the previous session, we introduced multiple regression by extending our analysis beyond a single explanatory variable. In doing so, we focused on models that included only *measured (continuous) variables*, such as test scores or grade averages. This allowed us to see how several factors can be considered simultaneously when explaining an outcome.
+
+However, many research questions in the social sciences involve variables that are not naturally measured on a continuous scale. For example, we may be interested in whether outcomes differ by gender, marital status, or ethnicity. These types of variables require a slightly different approach within the regression framework.
+
+In addition, relationships between variables are not always the same for all groups. For instance, the effect of education on wages may differ between men and women. To capture these differences, we introduce interactions between variables. An interaction occurs when the effect of one predictor variable on the outcome depends on the level of another predictor variable. This allows us to explore more complex relationships and to understand how different factors may combine to influence outcomes in ways that are not simply additive.
+
+In this session, we build on our earlier work by expanding the regression model to include categorical variables (through dummy coding), interactions between variables, and a more structured approach to model building. In particular, we will think carefully about which variables to include in a model and how to simplify models by removing less informative predictors.
+
+To illustrate these ideas, we will use a dataset on wages and labour market outcomes, which allows us to explore how factors such as education, work experience, and demographic characteristics are associated with earnings. The data come from the [`wooldridge` package](https://cran.r-project.org/web/packages/wooldridge/index.html) in R, which provides a collection of datasets commonly used for teaching econometrics and applied statistics in the social sciences. While the package originates from economics, the questions it allows us to address, such as inequality, returns to education, and group differences, are central to many areas of social science research. By the end of this session, you will have a deeper understanding of how to extend regression models to include a wider range of variables and interactions, and how to interpret the results in a meaningful way.
+
+## The dataset
+
+We now turn to the data that we will use to illustrate multiple regression, dummy variables, interactions, and model building.
+
+The dataset we will use is **`wage1`**, which contains information on wages and labour market characteristics. Our main outcome of interest is hourly wage, and we will examine how it is associated with factors such as education, work experience, job tenure, and selected demographic characteristics.
+
+The data come from the [`wooldridge` package](https://cran.r-project.org/web/packages/wooldridge/index.html) in R, which provides a collection of datasets commonly used for teaching econometrics and applied statistics. Further details about this dataset can be found in the package documentation: [`wage1` dataset documentation](https://cran.r-project.org/web/packages/wooldridge/refman/wooldridge.html#wage1). Before fitting any models, it is useful to explore the structure of the data and become familiar with the variables available.
+
+::: {.callout-note}
+Students are encouraged to consult the dataset documentation to better understand the variables and their definitions.
+:::
+
+## Loading and inspecting the data
+
+We begin by loading the dataset and identifying the variables that will be used in the analysis.
+
+Our **response variable** (outcome) is:
+
+- `wage`: hourly earnings
+
+We will consider the following **explanatory variables** (predictors):
+
+- `educ`: years of education  
+- `exper`: years of work experience  
+- `tenure`: years with current employer  
+- `female`: indicator for gender (1 = female)  
+- `married`: marital status indicator  
+- `nonwhite`: indicator for ethnicity  
+
+Before fitting a regression model, it is useful to explore the relationships between the continuous variables. One way to do this is by examining a correlation matrix.
+
+```{r}
+library(wooldridge)
+library(tidyverse)
+
+data("wage1")
+
+glimpse(wage1)
+```
+
+### A note on variable types
+
+Before jumping into correlations, it’s important to clarify the nature of some variables.
+
+Variables such as `female`, `married`, and `nonwhite` are stored as integers, but they are actually binary categorical variables (0/1 indicators). For example, female = 1 indicates female, while 0 indicates otherwise. So although they look numeric, they do not represent continuous quantities. This matters when interpreting correlations and later regression results.
+
+### Correlation matrix
+
+Let’s start by examining correlations among the continuous variables:
+
+```{r}
+wage1 %>%
+  select(wage, educ, exper, tenure) %>%
+  cor()
+```
+
+This helps us understand linear relationships between key numeric variables such as wages, education, and experience. We can see, for instance, that `wage` is positively correlated with `educ`, `exper`, and `tenure`, which suggests that higher education, more work experience, and longer tenure are associated with higher wages. However, these correlations do not account for the influence of other variables, which is why we will need to use multiple regression to get a clearer picture of these relationships.
+
+::: {.callout-note}
+Note: The binary variables (`female`, `married`, `nonwhite`) are excluded here because standard correlation is more meaningful for continuous variables.
+:::
+
+That said, we are still interested in how these binary attributes relate to the outcome (`wage`). To explore these relationships more fully, we turn to visual methods.
+
+Before doing so, we convert the binary variables into factors so they are treated as categorical variables. We then create a subset of relevant variables and inspect this new dataset, which will be used for visualisation and further exploration.
+
+```{r}
+library(dplyr)
+
+# Create a new dataset where binary (0/1) variables are converted to factors
+wage1_fac <- wage1 %>%
+  mutate(
+    # Recode gender indicator into a categorical variable with labels
+    female   = factor(female, levels = c(0, 1), labels = c("Male", "Female")),
+    
+    # Recode marital status into a categorical variable
+    married  = factor(married, levels = c(0, 1), labels = c("Not married", "Married")),
+    
+    # Recode race indicator into a categorical variable
+    nonwhite = factor(nonwhite, levels = c(0, 1), labels = c("White", "Nonwhite"))
+  )
+
+# Create a subset with variables of interest for analysis and visualisation
+wage1_sub <- wage1_fac %>%
+  select(wage, educ, exper, tenure, female, married, nonwhite)
+
+# Inspect the structure of the new subset dataset
+glimpse(wage1_sub)
+```
+This code snippet accomplishes several important tasks: 
+
+1. It uses `mutate()` to convert the binary variables (`female`, `married`, `nonwhite`) into factors with meaningful labels, which will make our visualisations and interpretations clearer.
+2. It creates a new dataset `wage1_sub` that includes only the variables we are interested in for our analysis and visualisation, making it easier to work with.
+3. Finally, it uses `glimpse()` to inspect the structure of the new dataset, confirming that the variables have been correctly transformed and are ready for analysis.
+
+Having prepared the data, we now move to a more comprehensive visual exploration of relationships between variables.
+
+While a correlation heatmap is useful for examining relationships among continuous variables, it does not handle categorical variables well. Since our dataset includes both types, we instead use [`ggpairs`](https://cran.r-project.org/web/packages/GGally/refman/GGally.html#ggpairs) from the [`GGally` package](https://cran.r-project.org/web/packages/GGally/index.html), which allows us to explore pairwise relationships across mixed data types in a single, unified display.
+
+```{r}
+library(GGally)
+
+ggpairs(wage1_sub)
+```
+
+This plot provides a richer view of the data: it shows correlations among continuous variables, distributions along the diagonal, and how wages vary across different groups (e.g. by gender or marital status).
+
+Focusing first on the relationship between the outcome variable (`wage`) and the predictors, we observe that wages tend to increase with education, experience, and tenure, which is consistent with the positive correlations seen earlier. The boxplots further suggest that wages may differ across groups, indicating potential group-level effects that should be accounted for in the analysis.
+
+In addition to these relationships, the plot also highlights associations among the explanatory variables themselves. For example, experience and tenure show a relatively strong positive correlation, while education appears to be negatively related to experience. We also observe that individuals with more work experience are more likely to be married, suggesting a relationship between `exper` and `married`.
+
+These relationships indicate that some predictors are not independent of one another. This is important because correlations among explanatory variables can lead to **multicollinearity** in a regression model. While this does not prevent estimation, it can make it more difficult to isolate the individual effect of each variable and may increase the uncertainty of coefficient estimates.
+
+Overall, this visualisation helps us understand both how wages relate to the predictors and how the predictors relate to one another. This provides a useful foundation for specifying and interpreting a regression model.
+
+Having explored these relationships, we now move to formal modelling. In the next section, we use multiple regression to examine how the predictors are associated with wages while accounting for the presence of other factors. We also introduce interactions to capture more complex relationships between variables.
+
+## A first multiple regression model
+
+We now move from exploratory analysis to formal modelling. Multiple regression allows us to examine how each predictor is associated with the outcome while holding the other variables constant.
+
+We begin with a model that includes several potential predictors of wages. This provides a useful starting point for understanding how different factors relate to earnings and sets the stage for refining the model.
+
+### The multiple regression model
+
+In general, a multiple regression model can be written as:
+
+
+$$Y = \beta_0 + \beta_1 X_1 + \beta_2 X_2 + \cdots + \beta_k X_k + \varepsilon$$
+where:
+
+- $Y$ is the outcome (response variable)  
+- $X_1$, $X_2$, $\ldots$, $X_k$ are the explanatory variables (predictors)  
+- $\beta_0$ is the intercept  
+- $\beta_1$, $\beta_2$, $\ldots$, $\beta_k$ are the coefficients  
+- $\varepsilon$ represents the error term  
+
+This model allows us to examine how each predictor is associated with the outcome while holding all other variables constant.
+
+In our case, the model can be written as:
+
+
+$$\text{wage} = \beta_0 + \beta_1 \text{educ} + \beta_2 \text{exper} + \beta_3 \text{tenure} + \beta_4 \text{female} + \beta_5 \text{married} + \beta_6 \text{nonwhite} + \varepsilon$$
+This expresses wages as a function of education, experience, tenure, and demographic characteristics.
+
+::: {.callout-note}
+In earlier handouts, we used notation such as $(b_0, b_1, b_2)$ for coefficients. Here, we use $(\beta_0, \beta_1, \beta_2)$, which is standard in many textbooks.
+
+Strictly speaking, $(\beta)$ refers to the true (population) parameter, while $(b)$ refers to its estimate from the sample. In practice, both notations are often used interchangeably in introductory settings.
+:::
+
+## Estimating the model
+
+We now estimate the multiple regression model using the data. This allows us to quantify the relationships between wages and the explanatory variables introduced earlier.
+
+The results provide estimates of the coefficients, which indicate how each predictor is associated with wages while holding the other variables constant.
+
+```{r}
+model_full <- lm(wage ~ educ + exper + tenure + female + married + nonwhite, 
+                 data = wage1)
+
+summary(model_full)
+```
+
+### The F-test: assessing the model as a whole
+
+Before interpreting individual coefficients, we first consider whether the model as a whole provides evidence of a relationship between the predictors and wages.
+
+Recall from earlier sessions that the F-test evaluates the following hypotheses:
+
+$H_0: \beta_1 = \beta_2 = \cdots = \beta_k = 0$
+
+$H_1: \text{At least one } \beta_j \neq 0$
+
+where $(j = 1, 2, \ldots, k)$, and $(k)$ is the number of explanatory variables included in the model.
+
+The null hypothesis states that none of the explanatory variables are related to the outcome, while the alternative hypothesis states that at least one predictor has a non-zero association with wages.
+
+### F-test decision rule
+
+To interpret the F-test more clearly, it is helpful to visualise the rejection region. 
+
+For a chosen significance level $\alpha = 0.05$, we reject the null hypothesis if the observed F-statistic falls in the upper tail of the F distribution, beyond the critical value $F_{\text{crit}}$. This corresponds to the region where the probability of observing such a large test statistic under $H_0$ is very small.
+
+```{r}
+# Degrees of freedom taken from the fitted model
+df1 <- model_full$rank - 1
+df2 <- model_full$df.residual
+alpha <- 0.05
+
+f_crit <- qf(1 - alpha, df1, df2)
+
+x <- seq(0, max(6, f_crit + 1), length.out = 1000)
+y <- df(x, df1, df2)
+
+plot(x, y, type = "l", lwd = 2,
+     main = "F Distribution (Overall Model Test)",
+     xlab = "", ylab = "Density",
+     xaxt = "n")
+
+axis(1,
+     at = c(0, f_crit),
+     labels = c("0", expression(F[crit])))
+
+polygon(c(f_crit, x[x >= f_crit], max(x)),
+        c(0, y[x >= f_crit], 0),
+        col = "lightgray", border = NA)
+
+abline(v = f_crit, col = "red", lwd = 2)
+
+arrows(0.2, max(y)*0.75, f_crit - 0.2, max(y)*0.75, length = 0.08)
+arrows(max(x) - 0.5, max(y)*0.75, f_crit + 0.2, max(y)*0.75, length = 0.08)
+
+text(f_crit/2, max(y)*0.8, expression(H[0]))
+text(f_crit + (max(x)-f_crit)/2, max(y)*0.8, expression(H[1]))
+text(max(x) - 0.8, max(y)*0.06, "5%")
+```
+
+For our model, the reported F-statistic is much larger than the critical value, and the p-value is extremely small. As a useful rule of thumb, the critical value for the F-test at the 5% significance level is often around 4 (depending on the degrees of freedom). In this case, the observed F-statistic is far larger than this threshold.
+
+Using the p-value decision rule, if the p-value is greater than 0.05 we fail to reject (or accept) $H_0$, whereas if the p-value is less than 0.05 we reject $H_0$ in favour of $H_1$. Since the p-value here is much smaller than 0.05, we reject $H_0$ and conclude that the model as a whole is statistically significant.
+
+This means that at least one of the predictors is associated with wages, providing evidence that the model has explanatory power.
+
+## Understanding dummy variables
+
+Before assessing the effect of each individual explanatory variable in the regression model, we need to consider how to properly include and interpret variables that are not measured on a continuous scale.
+
+In particular, many variables in social science research are categorical (or attribute variables), such as gender or marital status. These variables require a different treatment within the regression framework.
+
+We therefore begin by introducing dummy variables and exploring how they can be incorporated into regression models and interpreted meaningfully.
+
+To build intuition, we start by examining how wages differ across groups using simple descriptive statistics. We then show how these differences can be represented within a regression model.
+
+### Comparing group means
+
+We begin by comparing the average wages across groups defined by the binary variable `female`.
+
+```{r}
+wage1_sub %>%
+  group_by(female) %>%
+  summarise(mean_wage = mean(wage, na.rm = TRUE))
+```
+
+The table shows the average wage for each group, providing a simple way to understand how wages vary by gender.
+
+We observe that the average hourly wage for males is approximately 7.10, while for females it is approximately 4.59. This implies that, on average, females earn about 2.51 units less per hour than males: $7.10 - 4.59 = 2.51$.
+
+This difference in group means offers a straightforward measure of the wage gap in the sample. Importantly, this same difference is captured by the coefficient on `female` in a simple regression model:
+
+```{r}
+model_dummy <- lm(wage ~ female, data = wage1)
+model_dummy
+```
+
+In this model, the variable female is coded as a dummy variable taking values 0 and 1. In our case, female = 0 corresponds to males and female = 1 corresponds to females.
+
+This leads to the following interpretation:
+
+- When female **= 0** (males), the predicted wage is **equal to the intercept**
+- When female **= 1** (females), the predicted wage is **equal to the intercept plus the coefficient** on female
+
+Therefore:
+
+- The intercept represents the average wage for males (the reference group)
+- The coefficient on female represents the difference in average wages between females and males, which is approximately (-2.51)
+
+::: {.callout-note}
+The reference group is the category coded as 0 in a dummy variable and serves as the baseline for comparison.
+
+All coefficients for that variable are interpreted relative to this group.
+:::
+
+However, this comparison is purely descriptive and does not account for other factors that may influence wages, such as education, experience, or tenure.
+
+In the next step, we extend this framework by incorporating additional variables into the regression model, allowing us to examine group differences while controlling for other relevant factors.
+
+### Assessing model fit
+
+Before examining individual coefficients, it is useful to consider how well the model fits the data overall.
+
+From the regression output:
+
+- The $R^2$ value is approximately 0.368, meaning that about 36.8% of the variation in wages is explained by the predictors included in the model.
+- The adjusted $R^2$ is slightly lower (approximately 0.361), as it accounts for the number of variables included in the model.
+
+This suggests that the model explains a moderate proportion of the variation in wages. While the predictors capture important factors such as education and tenure, a substantial amount of variation remains unexplained, which is common in social science data.
+
+### Hypotheses for individual coefficients
+
+Having established that the model has explanatory power, we now assess the contribution of each individual predictor.
+
+For each coefficient $\beta_j$, we test:
+
+$H_0: \beta_j = 0$
+
+$H_1: \beta_j \neq 0$
+
+where $j$ indexes the predictor variables (e.g., education, experience... )
+
+The null hypothesis states that the predictor has no association with wages, while the alternative hypothesis states that it does.
+
+### Decision rules
+
+```{r}
+# Degrees of freedom from the fitted model
+df_t <- model_full$df.residual
+alpha <- 0.05
+
+t_crit <- qt(1 - alpha/2, df_t)
+
+x <- seq(-4, 4, length.out = 1000)
+y <- dt(x, df_t)
+
+# Plot WITHOUT default x-axis
+plot(x, y, type = "l", lwd = 2,
+     main = "t Distribution (Individual Coefficient Test)",
+     xlab = "", ylab = "Density",
+     xaxt = "n")
+
+# Custom x-axis
+axis(1,
+     at = c(-t_crit, 0, t_crit),
+     labels = c(expression(-t[crit]), "0", expression(t[crit])))
+
+# Shade rejection regions
+polygon(c(-4, x[x <= -t_crit], -t_crit),
+        c(0, y[x <= -t_crit], 0),
+        col = "lightgray", border = NA)
+
+polygon(c(t_crit, x[x >= t_crit], 4),
+        c(0, y[x >= t_crit], 0),
+        col = "lightgray", border = NA)
+
+# Red critical lines
+abline(v = c(-t_crit, t_crit), col = "red", lwd = 2)
+
+# Arrows
+arrows(-t_crit + 0.2, max(y)*0.75, t_crit - 0.2, max(y)*0.75,
+       length = 0.08, code = 3)
+
+arrows(-3.5, max(y)*0.75, -t_crit - 0.2, max(y)*0.75, length = 0.08)
+arrows(3.5, max(y)*0.75, t_crit + 0.2, max(y)*0.75, length = 0.08)
+
+# Labels
+text(0, max(y)*0.82, expression(H[0]))
+text(-3, max(y)*0.78, expression(H[1]))
+text(3, max(y)*0.78, expression(H[1]))
+
+text(-t_crit - 0.6, max(y)*0.12, "2.5%")
+text(t_crit + 0.6, max(y)*0.12, "2.5%")
+```
+
+There are two equivalent ways to make a decision:
+
+#### 1. t-test (critical value approach)
+
+For a given significance level (e.g. $\alpha = 0.05$), we reject $H_0$ if:
+
+$$|t| > t_{\text{crit}}$$
+
+That is, if the absolute value of the t-statistic falls in the rejection region.
+
+As a useful **rule of thumb**, for reasonably large samples, the critical value for a two-sided test at the 5% significance level is approximately:
+
+$$t_{\text{crit}} \approx \pm 2$$
+
+This means that, in many cases, if the absolute value of the t-statistic is greater than 2, we can conclude that the coefficient is statistically significant at the 5% level.
+
+#### 2. p-value approach
+
+Alternatively, we can use the p-value:
+
+- If $p > 0.05$, we fail to reject $H_0$
+- If $p < 0.05$, we reject $H_0$
+
+In practice, the p-value approach is most commonly used, as it is directly reported in the regression output.
+
+The t-distribution plot shown earlier illustrates the rejection regions for the test. Large absolute values of the t-statistic fall into the shaded regions, leading to rejection of the null hypothesis.
+
+This visualisation helps us understand how the numerical results in the regression output relate to statistical decision-making.
+
+We now apply these decision rules to the regression output to determine which variables make a statistically significant contribution to explaining wages.
+
+
+```{r}
+summary(model_full)
+```
+
+### Interpreting the results
+
+We now apply the decision rules to assess which variables make a statistically significant contribution to explaining wages.
+
+From the regression output:
+
+- `educ` has a large positive coefficient and a very small p-value (p < 0.001), indicating strong evidence that education is positively associated with wages.
+- `exper` has a positive coefficient, but its p-value is greater than 0.05. We therefore fail to reject \(H_0\), suggesting that experience is not statistically significant in this model.
+- `tenure` is also positive and statistically significant, suggesting that longer time with the current employer is associated with higher wages.
+- `female` has a negative and statistically significant coefficient, indicating that females earn less than males on average, even after controlling for other factors.
+- `married` is borderline significant, with a p-value close to 0.05, suggesting weak evidence of a positive association with wages.
+- `nonwhite` has a coefficient close to zero and is not statistically significant, indicating no clear evidence of an association with wages once other variables are included.
+
+Overall, these results show that not all variables contribute equally to the model. Some predictors, such as education and tenure, play a strong role in explaining wages, while others do not appear to have a statistically significant effect.
+
+::: {.callout-note}
+A statistically significant result indicates evidence of an association between a variable and the outcome, but it does not necessarily imply a causal relationship.
+:::
+
+These findings are consistent with the earlier exploratory analysis, where education and tenure showed clear relationships with wages. However, multiple regression allows us to assess these relationships while accounting for other factors simultaneously.
+
+These results naturally raise the question of whether all variables should be retained in the model, or whether a simpler specification may provide a clearer and more interpretable representation of the data. In the next section, we explore the process of model building and simplification, which involves making informed decisions about which predictors to include based on statistical significance, theoretical considerations, and model fit.
+
+## Refining the model
+
+The initial model included several potential predictors of wages. However, as we have seen, not all variables appear to make a statistically significant contribution.
+
+We now refine the model by simplifying it in a systematic way. The aim is to retain variables that meaningfully contribute to explaining wages, while removing those that do not.
+
+A simpler model is often preferable, provided that it does not lead to a loss of important information.
+
+### A structured approach
+
+We remove variables **one at a time**, rather than all at once. This is important because:
+
+- Variables may appear insignificant due to their relationship with other predictors (multicollinearity)
+- Removing one variable can change the significance of others
+- Step-by-step refinement allows us to understand how each variable contributes to the model
+
+At each step, we:
+
+1. Identify the least informative variable (based on p-values and interpretation)
+2. Remove it from the model
+3. Re-estimate the model
+4. Compare results, paying particular attention to the **$R^2_{\text{adj}}$**
+
+The $R^2_{\text{adj}}$ is especially useful here, as it penalises unnecessary complexity. A good refinement step should ideally maintain or improve the $R^2_{\text{adj}}$.
+
+### Why do we use $R^2_{\text{adj}}$?
+
+When comparing regression models, it is important to understand how model fit behaves as we add more explanatory variables.
+
+The $R^2$ statistic measures how well the model fits the data. However, it has an important limitation:
+
+- As more variables are added to a model, $R^2$ will **always increase or stay the same**
+- It will **never decrease**, even if the new variables are not useful
+
+In practice, this means that adding irrelevant variables can make a model appear to improve, even when it does not meaningfully explain the outcome.
+
+By contrast, the adjusted $R^2_{\text{adj}}$ takes into account the number of predictors in the model. It is defined as:
+
+$$
+R^2_{\text{adj}} 
+= 1 - (1 - R^2)\frac{n - 1}{n - k - 1}
+$$
+
+where:
+
+- $n$ is the sample size  
+- $k$ is the number of explanatory variables in the model  
+
+Unlike $R^2$, $R^2_{\text{adj}}$ penalises the inclusion of unnecessary predictors:
+
+- It increases only if a new variable improves the model sufficiently  
+- It can **decrease** if unnecessary variables are added  
+
+This makes adjusted $R^2_{\text{adj}}$ a more reliable measure when comparing models of different sizes.
+
+::: {.callout-note}
+$R^2$ rewards adding variables, even when they are not useful.  
+$R^2_{\text{adj}}$ penalises unnecessary complexity.
+
+As a result, adjusted $R^2_{\text{adj}}$ is generally preferred when comparing models.
+:::
+
+```{r}
+set.seed(123)
+
+n <- 30
+
+# True signal
+x1 <- rnorm(n)
+y  <- 2 + 2*x1 + rnorm(n, sd = 2)
+
+# Noise predictors
+noise <- replicate(20, rnorm(n))
+colnames(noise) <- paste0("x", 2:21)
+
+data_sim <- data.frame(y, x1, noise)
+
+# Store values
+r2_vals <- numeric(21)
+adjr2_vals <- numeric(21)
+
+for (k in 1:21) {
+  vars <- names(data_sim)[2:(k+1)]
+  form <- as.formula(paste("y ~", paste(vars, collapse = " + ")))
+  mod <- lm(form, data = data_sim)
+  
+  r2_vals[k] <- summary(mod)$r.squared
+  adjr2_vals[k] <- summary(mod)$adj.r.squared
+}
+
+# Find optimal model (max adjusted R^2)
+best_k <- which.max(adjr2_vals)
+
+# Plot
+plot(1:21, r2_vals, type = "o", pch = 19,
+     ylim = range(c(r2_vals, adjr2_vals)),
+     xlab = "Number of predictors",
+     ylab = "Model fit",
+     main = expression(R^2*" vs Adjusted "*R^2))
+
+lines(1:21, adjr2_vals, type = "o", pch = 17, lty = 2)
+
+# Red vertical line
+abline(v = best_k, col = "red", lwd = 2, lty = 2)
+
+# Optional label
+text(best_k, max(r2_vals),
+     labels = "Best model",
+     pos = 4, col = "red")
+
+legend("bottomright",
+       legend = c(expression(R^2), expression("Adjusted "*R^2)),
+       pch = c(19, 17), lty = c(1, 2))
+```
+
+The red line indicates the point at which the adjusted $R^2_{\text{adj}}$ reaches its maximum.
+
+This suggests the model with this number of predictors provides the best balance between:
+
+- goodness of fit, and
+- model simplicity.
+
+Beyond this point, adding more variables does not improve the model in a meaningful way. 
+
+In fact, if two models have the same $R^2_{\text{adj}}$ but differ in the number of explanatory variables, we would generally prefer the model with fewer predictors. This is because it achieves the same level of explanatory power while remaining simpler and easier to interpret.
+
+This idea is captured by the principle of **parsimony**, which plays an important role in model selection.
+
+::: {.callout-note}
+**Model selection principle (parsimony)**  
+Among competing models, we favour the one that explains the data adequately with the smallest number of variables.
+:::
+
+## 7.3 Step-by-step model refinement
+
+We now apply the structured approach outlined above to refine our regression model.
+
+From the previous results, we identified variables that do not appear to be statistically significant. We begin by removing the least informative variable and re-estimating the model.
+
+### Step 1: Remove `nonwhite`
+
+The variable `nonwhite` has a very large p-value and a coefficient close to zero, suggesting it does not contribute meaningfully to the model.
+
+```{r}
+model_1 <- lm(wage ~ educ + exper + tenure + female + married, 
+              data = wage1)
+
+summary(model_1)
+```
+
+**Comparing with the full model**
+
+We now compare this reduced model to the original (full) model.
+
+- The adjusted $R^2_{\text{adj}}$ has slightly increased from approximately 0.3609 to 0.3621.
+- This suggests that removing `nonwhite` has not reduced the explanatory power of the model. In fact, the model has improved slightly once we account for model complexity.
+
+This provides evidence that `nonwhite` was not contributing meaningful information and that its inclusion was adding unnecessary complexity.
+
+**Assessing changes in coefficients**
+
+Next, we examine whether removing nonwhite has affected the remaining coefficients.
+
+- The estimated coefficients for educ, exper, tenure, female, and married remain almost unchanged.
+- Importantly, the signs of all coefficients remain the same, indicating that the direction of the relationships has not been affected.
+- The statistical significance of the variables is also largely unchanged:  
+    * `educ` and `tenure` remain highly significant
+    * `female` remains strongly negative and significant
+    * `exper` remains statistically insignificant
+    * `married` remains borderline significant
+
+**Interpretation**
+
+The stability of the coefficients suggests that `nonwhite` was not strongly related to the other predictors (i.e. it was not inducing substantial multicollinearity effects).
+
+This is an important insight:
+
+- When removing a variable leads to large changes in coefficients or signs, it may indicate underlying relationships between predictors.
+- In this case, the lack of change reassures us that the model is stable and that removing nonwhite is appropriate.
+
+**Conclusion of Step 1**
+
+Overall, this step supports simplifying the model:
+
+- Model fit (as measured by $R^2_{\text{adj}}$) has slightly improved
+- Coefficients remain stable and interpretable
+- No important information appears to have been lost
+
+We therefore proceed to the next step of refinement.
+
+### Step 2: Remove `exper`
+
+In the previous step, we removed `nonwhite` and observed that the model improved slightly in terms of adjusted $R^2_{\text{adj}}$, with no meaningful changes in the remaining coefficients.
+
+We now turn to the next candidate for removal: `exper`.
+
+From the previous model, `exper` had a p-value greater than 0.05, suggesting that it is **not statistically significant** once other variables are included.
+
+We therefore estimate a new model without `exper`:
+
+```{r}
+model_2 <- lm(wage ~ educ + tenure + female + married, 
+              data = wage1)
+
+summary(model_2)
+```
+
+Comparing with the previous model
+
+We now compare this model to the one from Step 1.
+
+Focus on:
+
+- adjusted $R^2_{\text{adj}}$
+- changes in coefficients
+- statistical significance
+
+::: {.callout-note}
+**Model fit**
+
+- If adjusted $R^2_{\text{adj}}$ increases or remains similar, this suggests that removing `exper` does not harm the model.
+- If it decreases noticeably, this suggests that `exper` may still carry useful information.
+
+**Assessing changes in coefficients**
+
+This step is crucial.
+
+We now carefully compare the coefficients between models:
+
+-  Do the signs of coefficients change?
+-  Do the magnitudes change noticeably?
+-  Do any variables become more or less significant?
+
+**Key questions for interpretation:**
+
+- Does removing `exper` affect the estimated effect of `educ`?
+- Does it change the gender effect (`female`)?
+- Does it alter the importance of `tenure` or `married`?
+:::
+
+```{r}
+summary(model_1)$adj.r.squared
+summary(model_2)$adj.r.squared
+```
+
+### Interpreting the comparison
+
+From the output above, we can see that the adjusted $R^2_{\text{adj}}$ decreases slightly when `exper` is removed (from approximately 0.3621 to 0.3604).
+
+This suggests that removing `exper` leads to a **very small reduction in explanatory power**.
+
+### Assessing changes in coefficients
+
+We now examine whether removing `exper` has affected the remaining coefficients:
+
+- The coefficients for `educ`, `tenure`, and `female` remain **stable in both magnitude and sign**
+- All key relationships remain unchanged:
+  - `educ` continues to have a strong positive effect
+  - `tenure` remains positive and highly significant
+  - `female` remains negative and highly significant
+- The coefficient on `married` becomes **more clearly statistically significant**
+
+Importantly, there are **no sign reversals**, and no large shifts in coefficient values. This indicates that removing `exper` does not distort the underlying relationships in the model.
+
+### Interpreting the trade-off
+
+This step highlights an important aspect of model building: **there is often a trade-off between simplicity and fit**.
+
+- `exper` is **not statistically significant**, which supports removing it
+- However, adjusted $R^2_{\text{adj}}$ **decreases slightly**, suggesting that it may still contribute a small amount of information
+
+As modellers, we need to decide which aspect to prioritise:
+
+- retaining variables to maximise explanatory power, or  
+- simplifying the model to improve interpretability
+
+In this case, the decrease in adjusted $R^2_{\text{adj}}$ is **very small**, and the model becomes simpler without changing the main conclusions. Many researchers would therefore prefer the reduced model.
+
+However, it is also reasonable to argue that even a small drop in adjusted $R^2_{\text{adj}}$ indicates some loss of information.
+
+### Conclusion of Step 2
+
+Removing `exper` simplifies the model and does not materially affect the interpretation of the key predictors. The slight decrease in adjusted $R^2_{\text{adj}}$ suggests a minor loss of fit, but this may be acceptable in exchange for a more parsimonious model.
+
+::: {.callout-important}
+Model refinement is not purely mechanical. Good modelling requires judgement: we balance statistical significance, model fit, and simplicity when deciding which variables to retain.
+:::
+
+### Step 3: Reassessing the remaining variables
+
+At this stage, we have removed two variables `nonwhite` and `exper` and obtained a more parsimonious model.
+
+The remaining predictors are:
+
+- `educ`
+- `tenure`
+- `female`
+- `married`
+
+We now ask an important question:
+
+> **Should we simplify the model further, or have we reached a suitable specification?**
+
+### Evaluating the current model
+
+From the latest regression output, we observe:
+
+- `educ`, `tenure`, and `female` remain **strongly statistically significant**
+- `married` is now **statistically significant at the 5% level**
+- The adjusted $R^2_{\text{adj}}$ remains **relatively high**, with only a very small decrease compared to earlier models
+
+This suggests that all remaining variables are contributing meaningfully to the model.
+
+### Should we remove `married`?
+
+Although `married` was only borderline significant in earlier models, it has now become statistically significant after removing `exper`.
+
+This highlights an important concept:
+
+- The significance of a variable can **depend on which other variables are included in the model**
+- Removing one variable can **clarify the contribution of another**
+
+In this case, removing `exper` appears to have reduced noise or overlap, allowing the effect of `married` to become more clearly identifiable.
+
+### Final model choice
+
+At this point, further simplification would involve removing variables that are already statistically significant and substantively meaningful.
+
+Doing so would:
+
+- reduce explanatory power
+- risk omitting important relationships
+
+Therefore, we stop the refinement process here.
+
+### Final model
+
+The preferred model is:
+
+$$
+\text{wage} = \beta_0 + \beta_1 \text{educ} + \beta_2 \text{tenure} + \beta_3 \text{female} + \beta_4 \text{married} + \varepsilon
+$$
+
+This model achieves a good balance between:
+
+- explanatory power (relatively high $R^2_{\text{adj}}$)
+- statistical significance of predictors
+- simplicity and interpretability
+
+### Interpreting the final model
+
+We now interpret the estimated coefficients from the final model. Recall that in multiple regression, each coefficient represents the effect of that variable **holding all other variables constant**.
+
+- **Education (`educ`)**  
+  The coefficient on `educ` is positive (approximately 0.53).  
+  This means that, **holding tenure, gender, and marital status constant**, an additional year of education is associated with an increase in hourly wage of about **0.53 units** on average.
+
+- **Tenure (`tenure`)**  
+  The coefficient on `tenure` is also positive (approximately 0.15).  
+  This suggests that, **all else equal**, each additional year with the current employer is associated with an increase in hourly wage of about **0.15 units**.
+
+- **Gender (`female`) - dummy variable**  
+  The variable `female` is a binary indicator (1 = female, 0 = male), so its interpretation is slightly different.   
+  + When `female = 0` (males), the predicted wage is given by the intercept and other variables
+  + When `female = 1` (females), the predicted wage is **lower by the value of the coefficient**
+
+  The estimated coefficient is approximately **-1.71**, which means that:
+
+  > **Holding education, tenure, and marital status constant, females earn about 1.71 units less per hour than males, on average.**
+
+  Here, **males are the reference group**, and the coefficient measures the difference relative to this group.
+
+- **Marital status (`married`) - dummy variable**  
+  The variable `married` is also a binary indicator (1 = married, 0 = not married).
+
+  The estimated coefficient is approximately **0.69**, which means that:
+
+  > **Holding other factors constant, married individuals earn about 0.69 units more per hour than non-married individuals, on average.**
+
+  In this case, **non-married individuals form the reference group**, and the coefficient captures the difference relative to them.
+
+- **Intercept ($\beta_0$)**  
+  The intercept represents the predicted wage when all explanatory variables are equal to zero.
+
+  In this context, it corresponds to the expected wage for an individual who is:
+  - male (`female = 0`)
+  - not married (`married = 0`)
+  - with zero years of education and tenure  
+
+  While this scenario may not be realistic, the intercept is necessary for defining the regression line.
+
+### Summary of interpretation
+
+- Continuous variables (`educ`, `tenure`) measure **marginal changes**
+- Dummy variables (`female`, `married`) measure **differences between groups relative to a reference category**
+
+This distinction is crucial for correctly interpreting regression results.
+
+::: {.callout-important}
+**Key takeaway**
+
+Model building is an iterative process. We begin with a broad specification and gradually simplify it, ensuring that we retain variables that are both statistically meaningful and substantively important.
+:::
+
+## A brief note on interactions
+
+So far, we have assumed that each explanatory variable has the same effect for everyone. For example, we have treated the effect of education on wages as if it were the same for males and females.
+
+In practice, this may not always be the case. It is possible that the relationship between one predictor and the outcome depends on the value of another predictor. This is what we mean by an **interaction**.
+
+For example, it may be reasonable to investigate whether the effect of education on wages differs by gender. Up to this point, our regression models have assumed that the association between education and wages is the same for everyone. In other words, each additional year of education is assumed to increase wages by the same amount, regardless of whether the individual is male or female.
+
+However, this assumption may not always be realistic. In many labour market settings, the returns to education may differ across groups because of differences in occupational opportunities, career progression, discrimination, work histories, or other structural factors. As a result, the relationship between education and wages may be stronger for one group than for another.
+
+This is why an interaction can be useful. Rather than assuming a single common slope for education, an interaction allows the slope to vary across groups. In this case, it would allow us to ask whether an additional year of education is associated with the same wage increase for males and females, or whether the size of that increase differs by gender.
+
+A useful way to understand this is visually:
+
+```{r}
+# Simple simulated visualisation of an interaction
+educ <- seq(10, 18, by = 1)
+
+# No interaction: same slope for both groups
+male_no_int   <- 5 + 2 * educ
+female_no_int <- 2 + 2 * educ   # same slope, lower intercept
+
+# Interaction: VERY different slopes
+male_int   <- 5 + 2.5 * educ
+female_int <- 20 + 0.5 * educ   # much flatter slope
+
+par(mfrow = c(1, 2))
+
+# Panel 1: no interaction (parallel lines)
+plot(educ, male_no_int, type = "l", lwd = 3,
+     ylim = range(c(male_no_int, female_no_int, male_int, female_int)),
+     xlab = "Years of education",
+     ylab = "Wage",
+     main = "No interaction")
+
+lines(educ, female_no_int, lwd = 3, lty = 2)
+
+legend("topleft",
+       legend = c("Male", "Female"),
+       lwd = 3, lty = c(1, 2), bty = "n")
+
+# Panel 2: strong interaction (non-parallel, crossing lines)
+plot(educ, male_int, type = "l", lwd = 3,
+     ylim = range(c(male_no_int, female_no_int, male_int, female_int)),
+     xlab = "Years of education",
+     ylab = "Wage",
+     main = "Interaction")
+
+lines(educ, female_int, lwd = 3, lty = 2)
+
+legend("topleft",
+       legend = c("Male", "Female"),
+       lwd = 3, lty = c(1, 2), bty = "n")
+```
+In the left panel, the lines are parallel. This means that the effect of education on wages is the same for males and females: each additional year of education is associated with the same increase in wages for both groups.
+
+In the right panel, the lines are not parallel. This indicates an interaction: the effect of education on wages differs by gender. In other words, the increase in wages associated with an additional year of education is not the same for males and females.
+
+Conceptually, this is important because it moves us beyond asking only whether education matters and towards asking **for whom** it matters more, or less. In that sense, interactions help us capture more realistic and socially meaningful patterns in the data.
+
+A simple way to represent this is by adding an interaction term to the model, such as:
+
+$$
+\text{wage} = \beta_0 + \beta_1 \text{educ} + \beta_2 \text{female} + \beta_3 (\text{educ} \times \text{female}) + \varepsilon
+$$
+
+In practice, including an interaction in a regression model is straightforward. In R, we can write `lm(wage ~ educ * female, data = wage1)`:
+
+```{r}
+model_interaction <- lm(wage ~ educ * female, data = wage1)
+summary(model_interaction)
+```
+
+The `*` notation tells R to include both the main effects (educ, female) and their interaction (educ:female). The coefficient on the interaction term indicates whether the effect of education on wages changes depending on gender.
+
+**Interpreting the interaction model (briefly)**
+
+As with earlier models, we begin by assessing the model as a whole. The F-statistic is large and the p-value is very small, indicating that the model has overall explanatory power. This suggests that at least one of the included variables is associated with wages.
+
+When interactions are present, it is important to proceed in a structured way. In particular, we first assess the interaction term itself before turning to individual coefficients.
+
+The interaction term (educ:female) captures whether the relationship between education and wages differs by gender. In other words, it tells us whether the slope relating education to wages changes across groups.
+
+In this model, the interaction term is not statistically significant (p-value ≈ 0.41). This suggests that there is no strong evidence that the return to education differs between males and females in this dataset. As a result, the simpler additive model, where the effect of education is assumed to be the same across groups, appears to be sufficient.
+
+Only after assessing the interaction would we move on to interpreting the individual coefficients. However, when interactions are included, interpretation becomes more complex, as the effect of one variable depends on the level of another.
+
+For this reason, we do not explore the detailed interpretation here. Instead, the key takeaway is the structured approach:
+
+- First assess overall model fit
+- Then evaluate whether the interaction is important
+- Only then interpret the remaining coefficients
+
+This ensures that we correctly account for potential differences in relationships across groups.
+
+## Summary and key takeaways
+
+In this session, we have extended the multiple regression framework to include categorical variables and to think more carefully about model specification and simplification. We have also introduced the idea that relationships between variables may not always be the same for all groups.
+
+Interactions provide a way to capture these more complex patterns by allowing the effect of one variable to depend on another. While we have only touched on this idea briefly, it highlights an important extension of the regression model and sets the stage for more advanced analysis.
+
+Overall, model building is an iterative and thoughtful process. By combining statistical evidence, clear interpretation, and the principle of parsimony, we can develop models that are both meaningful and informative.
+
+

@@ -1,0 +1,174 @@
+---
+title: "Building and Refining Multiple Regression Models"
+subtitle: "From Specification to Simplification: Developing Regression Models"
+author: "Tatjana Kecojević"
+format: 
+  pdf:
+    documentclass: article
+    fontsize: 11pt
+    tbl-colwidths: [50, 110]
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+## 1. Introduction
+
+In this practical, we move from understanding regression models to **building and refining them ourselves**.
+
+Rather than reproducing the models from the lecture, you will take an active role as a **modeller**. You will:
+
+- construct your own regression models  
+- assess their fit  
+- interpret results  
+- simplify models where appropriate  
+
+There is **no single correct answer**; what matters is your reasoning.
+
+::: {.callout-important}
+**Thinking like a modeller**
+
+Model building is not mechanical. You must balance:   
+- statistical significance  
+- model fit ($R^2_{\text{adj}}$)  
+- simplicity (parsimony)  
+
+Your goal is to justify your decisions.
+:::
+
+::: {.callout-important}
+**Important**
+
+There are **no model answers** for this practical.
+
+This is intentional. The aim is to help you develop the skills needed to:   
+- make your own modelling decisions  
+- justify your choices  
+- interpret results independently  
+
+Different students may arrive at different models, this is expected.
+
+This practical is designed to help you prepare for your **assessment**, where you will be required to carry out a similar analysis on your own.
+:::
+
+---
+
+## 2. Loading the data
+
+```{r}
+library(wooldridge)
+library(tidyverse)
+
+data("wage1")
+
+glimpse(wage1)
+```
+We will model wage using a selection of explanatory variables.
+
+## 3. Building your first model
+
+**Choosing your variables**
+
+In the lecture, we focused on a specific set of predictors (e.g. `educ`, `exper`, `tenure`, `female`, `married`, `nonwhite`).
+
+In this practical, you are encouraged to go beyond these choices.
+
+Explore the dataset and consider including additional variables, such as:     
+
+- `numdep`, number of dependents
+- `smsa`, urban location indicator
+- regional indicators (`northcen`, `south`, `west`)
+- occupation or industry variables (e.g. `trade`, `services`, `profocc`)\
+
+::: {.callout-important}
+**Important**
+
+Do not simply replicate the model from the lecture.
+
+You are encouraged to:    
+
+- experiment with different combinations of variables
+- compare alternative specifications
+- justify your modelling choices
+
+Different students may obtain different models; this is expected.
+:::
+
+### Task 1
+
+Construct a regression model using:   
+
+- at least three predictors, and
+- at least one variable not used in the lecture model\
+
+```{r, eval = FALSE}
+model_1 <- lm(wage ~ ..., data = wage1)
+summary(model_1)
+```
+
+**Questions**
+
+1. What is $R^2$?
+    \vspace{1cm}
+2. What is $R^2_{\text{adj}}$?
+    \vspace{1cm}
+3. Which variables are statistically significant?
+    \vspace{2cm}
+    
+::: {.callout-note}
+**Tip**
+
+Before building your model, use `glimpse()` or `summary()` to explore the dataset and identify variables that might plausibly affect wages.
+:::
+\vspace{0.15cm}
+::: {.callout-warning}
+**Challenge (optional)**
+
+Try including a variable whose effect is not immediately obvious.
+
+For example, you might explore:
+
+- `smsa` (whether the individual lives in an urban area)
+
+Questions to consider:
+
+- Does it turn out to be statistically significant?  
+- Does it change the results for other variables?  
+- Does its effect make sense in context?  
+
+Most importantly:
+
+> Does this variable help explain the variability in **wage**?
+
+Remember, your goal is to explain differences in the outcome variable ($Y$). A useful predictor should contribute to explaining why wages vary across individuals.
+
+This helps you think critically about model specification.
+:::
+\vspace{.3cm}
+
+## Final note
+
+::: {.callout-note}
+**Explore and enjoy the process**
+
+Have fun with this.
+
+Try different models, change variables, and see what happens. There is a lot to learn by experimenting and observing how your results change.  
+
+Play with the data, explore different ideas, and don’t be afraid to make mistakes, that’s how you develop intuition.  
+
+The goal here is not just to get an answer, but to **understand the modelling process**.  
+
+**Hints to guide your exploration** 
+    
+- Start simple, then gradually add variables  
+- Pay attention to how $R^2_{\text{adj}}$ changes as you modify your model  
+- Watch how coefficients change when you add or remove variables  
+- Think about whether the signs and magnitudes make sense  
+- Consider whether a variable is statistically significant *and* meaningful  
+- If two models perform similarly, prefer the simpler one  
+
+\vspace{0.25cm}
+**Learn, experiment, and enjoy it!**
+:::
