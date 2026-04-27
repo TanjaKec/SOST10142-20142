@@ -1,0 +1,820 @@
+---
+title: "Logistic Regression: Modelling Binary Outcomes"
+subtitle: "Extending Regression to Probabilities"
+author: "Tatjana Kecojević"
+date: last-modified
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    code-fold: true
+    code-summary: "Show/Hide Code"
+    smooth-scroll: true
+    page-layout: article
+
+execute:
+  echo: true
+  warning: false
+  message: false
+  freeze: auto
+---
+
+## Introduction
+
+In previous sessions, we used multiple regression to explain variation in a **continuous outcome**, such as wages.
+
+However, many research questions in the social sciences involve outcomes that are **not continuous**, but instead take only two possible values.
+
+For example, we may be interested in whether:
+
+- a student passes or fails
+- an individual is employed or unemployed
+- a person chooses to purchase a product
+
+These are known as **binary outcomes**.
+
+Linear regression is not well suited for modelling binary outcomes, as it can produce predictions outside the range of valid probabilities and does not capture the underlying relationship appropriately.
+
+To address this, we introduce **logistic regression**, a model designed to explain the **probability** that an event occurs.
+
+In this session, we focus on building intuition for logistic regression and understanding how it extends the regression framework you have already learned.
+
+## From outcomes to probabilities
+
+Before introducing the formal model, it is useful to think about the type of problem we are trying to solve.
+
+![](images/LogisticRegression_Happy-Sad.png){fig-align="center" width="80%"}
+
+In this setting, we are no longer trying to predict a continuous value.
+
+Instead, we are interested in predicting **which category an individual belongs to**.
+
+For example:
+
+- Will a person be **happy or sad**?
+- Will a student **pass or fail**?
+
+We use explanatory variables such as age, education, health, or income to estimate the **probability** that a particular outcome occurs.
+
+::: {.callout-important}
+**Key idea**
+
+Logistic regression does not predict the outcome directly.  
+It predicts the **probability** of the outcome.
+:::
+
+## The idea behind logistic regression
+
+Logistic regression builds directly on the ideas from multiple regression, but with one key difference.
+
+In multiple regression, we use explanatory variables to predict a **numerical outcome**.
+
+In logistic regression, we use explanatory variables to predict a **probability**.
+
+That is:
+
+- Instead of predicting *how much*, we predict *how likely*
+
+For example, we might use variables such as:
+
+- cost of a course  
+- number of lab hours  
+- prior experience  
+
+to estimate the **probability** that a student is satisfied with the course (e.g. satisfied vs not satisfied).
+
+::: {.callout-note}
+In multiple regression:
+we predict a **value** of $Y$
+
+In logistic regression:
+we predict the **probability** that $Y = 1$
+:::
+
+## Why not use linear regression?
+
+It might seem tempting to use linear regression when the outcome is coded as 0 and 1. For example, we could code:
+
+- `1` = satisfied  
+- `0` = not satisfied  
+
+and then try to predict this outcome using the usual regression model.
+
+However, this creates problems.
+
+First, linear regression can produce predicted values below 0 or above 1. These values are not meaningful if we are trying to interpret them as probabilities.
+
+Second, the relationship between explanatory variables and probabilities is often not a straight line. Probabilities are bounded: they cannot go below 0 and they cannot go above 1.
+
+Logistic regression solves this problem by using a model that keeps predicted probabilities within the range from 0 to 1.
+
+::: {.callout-note}
+A probability must always lie between 0 and 1.
+
+This is one of the main reasons why logistic regression is more appropriate than linear regression for binary outcomes.
+:::
+
+## The logistic curve
+
+Instead of fitting a straight line, logistic regression uses an S-shaped curve.
+
+This shape is useful because:
+
+- at low values of the predictor, the probability is close to 0
+- at high values of the predictor, the probability approaches 1
+- in the middle, the probability changes more quickly
+
+```{r}
+# Create a sequence of values to represent the linear predictor
+# This ranges from very low to very high values
+x <- seq(-6, 6, length.out = 100)
+
+# Apply the logistic function to transform the linear predictor into probabilities
+# This ensures all predicted values lie between 0 and 1
+p <- 1 / (1 + exp(-x))
+
+plot(x, p, type = "l", lwd = 2,
+     xlab = "Linear predictor", # Label for the x-axis (represents the linear combination of predictors)
+     ylab = "Predicted probability", # Label for the y-axis (predicted probabilities)
+     main = "The logistic curve")  # Title of the plot
+
+# Add horizontal reference lines at 0 and 1
+# These highlight the bounds of probabilities
+abline(h = c(0, 1), lty = 2)
+```
+
+The curve illustrates how logistic regression converts a linear predictor into a probability.
+As the curve approaches 0 and 1, it flattens out, ensuring that predicted probabilities stay within valid limits.
+This means that no matter how large or small the predictor becomes, the predicted probability will always lie between 0 and 1.
+
+## From probabilities to odds
+
+So far, we have focused on probabilities, values between 0 and 1 that represent how likely an event is.
+
+However, logistic regression does not model probabilities directly.
+
+Instead, it works with a related concept called **odds**.
+
+The odds of an event compare:
+
+- the probability that the event occurs  
+- to the probability that it does not occur  
+
+For a probability $p$, the odds are defined as:
+
+$$
+\text{odds} = \frac{p}{1 - p}
+$$
+
+### Understanding odds
+
+Let’s make this more concrete by thinking in terms of simple situations.
+
+Suppose we are interested in whether a student passes an exam.
+
+**Case 1: $p = 0.5$**
+
+This means there is a 50% chance of passing.
+
+The odds are:
+
+$$
+\frac{0.5}{1 - 0.5} = 1
+$$
+
+This can be interpreted as:
+
+- **1 to 1 odds**  
+- the student is just as likely to pass as to fail  
+
+
+**Case 2: $p = 0.8$**
+
+This means there is an 80% chance of passing.
+
+The odds are:
+
+$$
+\frac{0.8}{0.2} = 4
+$$
+
+This can be interpreted as:
+
+- **4 to 1 odds**  
+- the student is 4 times more likely to pass than to fail  
+
+**Case 3: $p = 0.2$**
+
+This means there is only a 20% chance of passing.
+
+The odds are:
+
+$$
+\frac{0.2}{0.8} = 0.25
+$$
+
+This can be interpreted as:
+
+- **1 to 4 odds** (or 0.25 to 1)  
+- the student is much more likely to fail than to pass  
+
+::: {.callout-note}
+**How to think about odds**
+
+- Probability answers: *“How likely is the event?”*  
+- Odds answer: *“How likely is the event compared to it not happening?”*
+:::
+
+## From odds to log-odds
+
+We have seen that odds allow us to compare how likely an event is to occur relative to it not occurring.
+
+However, there is still a problem:
+
+- Odds can only take **positive values** (from 0 to infinity)
+
+To build a regression model, we need a quantity that can take **any value** (positive or negative).
+
+This is why we take the **logarithm of the odds**, known as the **log-odds** or **logit**:
+
+$$
+\log\left(\frac{p}{1 - p}\right)
+$$
+
+### Understanding log-odds
+
+Taking the logarithm may seem like an extra step, but it has a very useful effect.
+
+Let’s revisit our earlier examples:
+
+- If $p = 0.5$, odds = 1  
+  $\Rightarrow \log(1) = 0$
+
+- If $p = 0.8$, odds = 4  
+  $\Rightarrow \log(4) > 0$ (positive value)
+
+- If $p = 0.2$, odds = 0.25  
+  $\Rightarrow \log(0.25) < 0$ (negative value)
+
+This gives us a very helpful interpretation:
+
+- **log-odds = 0** $\rightarrow$ event is equally likely to happen or not  
+- **log-odds > 0** $\rightarrow$ event is more likely to happen  
+- **log-odds < 0** $\rightarrow$ event is less likely to happen  
+
+::: {.callout-note}
+**Key idea**
+
+The log transformation converts odds into a scale that can take **any value**:
+
+- very unlikely events $\rightarrow$ large negative values  
+- very likely events $\rightarrow$ large positive values  
+- balanced case $\rightarrow$ zero
+:::
+
+### Why this matters
+
+By working with log-odds, we can now use a **linear model**:
+
+$$
+\log\left(\frac{p}{1 - p}\right) = \beta_0 + \beta_1 X_1 + \beta_2 X_2 + \cdots
+$$
+
+This looks very similar to the regression models we have already seen.
+
+The key difference is that we are now modelling the **log-odds of the outcome**, rather than the outcome itself.
+
+::: {.callout-important}
+**Key takeaway**
+
+Logistic regression keeps the familiar structure of regression,  
+but applies it to a transformed version of probability.
+:::
+
+## The logistic regression model
+
+We are now ready to bring everything together.
+
+Logistic regression models the **log-odds** of the outcome as a linear function of the predictors:
+
+$$
+\log\left(\frac{p}{1 - p}\right) = \beta_0 + \beta_1 X_1 + \beta_2 X_2 + \cdots + \beta_k X_k
+$$
+
+This looks very similar to the regression models we have already studied.
+
+The key difference is:
+
+- In linear regression, we model $Y$ directly  
+- In logistic regression, we model the **log-odds of $Y = 1$**
+
+::: {.callout-important}
+**Key idea**
+
+Logistic regression is still a linear model,  
+but it is linear in the **log-odds**, not in the outcome itself.
+:::
+
+## From linear models to generalised linear models
+
+So far, we have used linear regression models estimated using the `lm()` function.
+
+These models are based on the idea of **minimising squared errors** (the least squares method), and they are appropriate when the outcome variable is continuous.
+
+However, when the outcome is binary, this approach is no longer suitable.
+
+Instead, logistic regression belongs to a broader class of models called **generalised linear models (GLMs)**.
+
+### What is a GLM?
+
+A generalised linear model extends the idea of linear regression to allow for different types of outcomes.
+
+It does this by:
+
+- modelling a **transformed version of the outcome** (in our case, the log-odds)  
+- allowing the model to handle **non-continuous outcomes**, such as binary variables  
+
+::: {.callout-note}
+**Key difference**
+
+- Linear regression (`lm`) models the outcome directly  
+- Logistic regression (`glm`) models a transformation of the outcome (log-odds)
+:::
+
+### Why don't we use least squares here?
+
+In linear regression, we estimate coefficients by minimising squared errors.
+
+In logistic regression, this is not appropriate because:
+
+- the outcome is not continuous  
+- the relationship is not linear in the original scale  
+
+Instead, logistic regression uses a different estimation method (called **maximum likelihood**), which is designed for modelling probabilities.
+
+::: {.callout-important}
+**Key idea**
+
+- `lm()` uses least squares $\rightarrow$ for continuous outcomes  
+- `glm()` uses maximum likelihood $\rightarrow$ for binary outcomes
+:::
+
+::: {.callout-note}
+**A note on generalised linear models**
+
+Logistic regression is part of a broader class of models known as **generalised linear models (GLMs)**.
+
+These models were formally introduced by statisticians [**Nelder and Wedderburn (1972)**](https://www.jstor.org/stable/2344614) as a way to extend linear regression to a wider range of data types, including binary and count outcomes.
+
+In this course, we focus on developing an intuitive understanding of logistic regression as one example of a GLM.
+
+More advanced aspects of these models are studied in later courses.
+:::
+
+### Specifying the model
+
+Before estimating the model in R, we first write down the logistic regression model in terms of our variables.
+
+In general, the logistic regression model is:
+
+$$\log\left(\frac{p}{1 - p}\right) = \beta_0 + \beta_1 X_1 + \beta_2 X_2 + \cdots + \beta_k X_k$$
+
+In our case, we are modelling the probability of earning a high wage using education, experience, tenure, and gender.
+
+This gives the following model:
+
+$$\log\left(\frac{p}{1 - p}\right) = \beta_0 + \beta_1 \,\text{educ} + \beta_2 \,\text{exper} + \beta_3 \,\text{tenure} + \beta_4 \,\text{female}$$
+where:
+
+- $p$ is the **probability of earning a high wage**  
+
+- the $\beta$'s are the unknown parameters we will estimate from the data  
+
+::: {.callout-note}
+
+At this stage, the coefficients are unknown.  
+
+We will estimate them using the data in the next step.
+
+:::
+
+## Estimating a logistic regression model in R
+
+We return to the `wage1` dataset used in previous sessions.
+
+Since logistic regression requires a **binary outcome**, we first create one.
+
+Here, we define a variable indicating whether an individual earns a **high wage**.
+
+```{r}
+library(wooldridge)
+library(tidyverse)
+
+data("wage1")
+
+# Create binary outcome: 1 = above median wage, 0 = below median
+wage1$high_wage <- ifelse(wage1$wage > median(wage1$wage), 1, 0)
+
+# Check distribution
+table(wage1$high_wage)
+```
+
+We now estimate a logistic regression model using the `glm()` function.
+
+In this model, we are interested in explaining the **probability of earning a high wage** (above the median), using a set of explanatory variables:
+
+- `educ`: years of education  
+- `exper`: years of work experience  
+- `tenure`: years with current employer  
+- `female`: gender indicator (1 = female, 0 = male)  
+
+```{r}
+model_logit <- glm(high_wage ~ educ + exper + tenure + female,
+                   data = wage1,
+                   family = binomial)
+
+summary(model_logit)
+```
+
+The argument `family = binomial` tells R that:
+
+- the outcome variable is binary (0/1)
+- we want to estimate a logistic regression model
+
+The output produced by `summary()` looks similar to linear regression, but the interpretation is different:
+
+- the coefficients are expressed in terms of log-odds
+- the sign of each coefficient tells us the direction of the relationship
+
+For example:
+
+- a positive coefficient means the variable increases the probability of having a high wage
+- a negative coefficient means the variable decreases the probability of having a high wage
+
+At this stage, focus on:
+
+- which variables are statistically significant
+- whether their effects are positive or negative
+
+Rather than focusing on exact numerical values, try to understand how each variable affects the likelihood of being in the high-wage group.
+
+::: {.callout-note}
+In logistic regression, we are modelling probabilities, not actual wage values.
+
+This is why the interpretation focuses on likelihood rather than magnitude.
+:::
+
+## Assessing the model
+
+We now assess the logistic regression model, 
+
+$$\log\left(\frac{p}{1 - p}\right) = -4.626 + 0.374 \,\text{educ} + 0.011 \,\text{exper} + 0.085 \,\text{tenure} - 1.389 \,\text{female}$$
+following a similar structure to linear regression.
+
+### 1. Overall model assessment
+
+In logistic regression, we assess the model by comparing:
+
+- a model with no predictors (null model)  
+- the model with predictors  
+
+This comparison is based on **deviance**.
+
+From the output:
+
+- Null deviance = 729.18  
+- Residual deviance = 562.08  
+
+The difference is:
+
+$$
+729.18 - 562.08 = 167.10
+$$
+
+We compare this difference to a **chi-square distribution**.
+
+- If the difference is large relative to this distribution $\rightarrow$ the model is useful  
+- If it is small $\rightarrow$ the model does not improve much  
+
+In this case, the difference is very large, which provides strong evidence that:
+
+> The explanatory variables help explain the outcome
+
+```{r}
+# Compute the p-value for the overall model test
+# We use the difference in deviance (167.10) and compare it to a chi-square distribution
+# df = 4 corresponds to the number of predictors added to the model
+p_val <- pchisq(167.10, df = 4, lower.tail = FALSE)
+
+# Print the p-value in a readable format
+# %.3g displays the number using 3 significant digits (scientific notation if needed)
+sprintf("p-value = %.3g", p_val)
+```
+
+This p-value is extremely small, so we reject the null hypothesis that the model has no explanatory power.
+
+### 2. Hypotheses for individual variables
+
+For each coefficient, we test:
+
+$$
+H_0: \beta_j = 0
+$$
+
+$$
+H_1: \beta_j \neq 0
+$$
+
+This is the same idea as in linear regression:
+
+- the null hypothesis states that the variable has **no effect**  
+- the alternative states that it **does affect** the outcome  
+
+### 3. Decision rule (z-test)
+
+In logistic regression, we use a **z-statistic** instead of a t-statistic.
+
+The decision rule is very similar:
+
+- If $|z| > 2$ $\rightarrow$ reject $H_0$ (statistically significant)  
+- If $|z| < 2$ $\rightarrow$ fail to reject $H_0$  
+
+This is a useful **rule of thumb** for large samples.
+
+Alternatively, we can use the p-value:
+
+- If $p < 0.05$ $\rightarrow$ significant  
+- If $p > 0.05$ $\rightarrow$ not significant  
+
+### Why does |z| > 2 imply p < 0.05?
+
+The z-statistic tells us how far our estimate is from zero, measured in standard errors.
+
+- A value of **z = 0** means no effect  
+- Larger absolute values of z mean stronger evidence against the null hypothesis  
+
+In large samples, the z-statistic follows a standard normal distribution.
+
+From this distribution, we know that:
+
+- about **95% of values lie between -2 and +2**  
+- only about **5% lie outside this range**
+
+This means:
+
+- If $|z| > 2$, the result falls in the **outer 5% of the distribution**  
+- This corresponds to a **p-value less than 0.05**
+
+Therefore:
+
+- $|z| > 2$ $\Rightarrow$ statistically significant at the 5% level  
+- $|z| < 2$ $\Rightarrow$ not statistically significant  
+
+::: {.callout-note}
+The z-test and the p-value are just two different ways of making the same decision.
+:::
+
+### Interpreting individual contributions
+
+We now use the z-statistics and p-values to assess which variables contribute to explaining the probability of being in the high-wage group.
+
+From the output:
+
+- `educ` is positive and statistically significant ($z = 7.79$, $p < 0.001$). This suggests that more years of education are associated with a higher probability of being in the high-wage group.
+- `exper` is positive but not statistically significant ($z = 1.19$, $p = 0.233$). This means there is no strong evidence that experience contributes to explaining high-wage status once the other variables are included.
+- `tenure` is positive and statistically significant ($z = 4.30$, $p < 0.001$). This suggests that longer time with the current employer is associated with a higher probability of being in the high-wage group.
+- `female` is negative and statistically significant ($z = -6.65$, $p < 0.001$). This suggests that females have a lower probability of being in the high-wage group than males, holding education, experience, and tenure constant.
+Overall, `educ`, `tenure`, and `female` appear to make important contributions to the model, while `exper` does not appear to be statistically significant in this specification.
+
+### Summary
+
+- There is no standard $R^2$ in logistic regression, but we can still assess whether the model is useful.
+- We assess the overall model by comparing the null deviance and residual deviance.
+- We assess individual variables using z-tests and p-values.
+- We interpret results in terms of **probabilities and likelihood**, not direct changes in the outcome value.
+
+::: {.callout-important}
+Logistic regression follows the same logic as linear regression:
+
+- test the model  
+- test individual variables  
+- interpret the results  
+
+But the interpretation is in terms of **probabilities**, not outcomes.
+:::
+
+## Refining the logistic regression model
+
+From the previous output, `exper` was not statistically significant. This suggests that, once education, tenure, and gender are included, there is no strong evidence that work experience contributes to explaining whether someone is in the high-wage group.
+
+We therefore consider a simpler model that excludes `exper`.
+
+### Reduced model specification
+
+The reduced logistic regression model is:
+
+$$\log\left(\frac{p}{1 - p}\right) = \beta_0 + \beta_1 \,\text{educ} + \beta_2 \,\text{tenure} + \beta_3 \,\text{female}$$
+
+where:
+
+- $p$ is the probability of earning a high wage  
+- `educ`, `tenure`, and `female` are the explanatory variables retained in the model  
+
+### Fitting the reduced model in R
+
+```{r}
+model_1 <- glm(high_wage ~ educ + tenure + female,
+               data = wage1,
+               family = binomial)
+
+summary(model_1)
+```
+
+Using the fitted coefficients from the reduced model
+
+```{r}
+round(coef(model_1), 3)
+```
+
+we can write the estimated model as:
+
+$$\log\left(\frac{p}{1 - p}\right) = -4.312 + 0.359 \,\text{educ} + 0.096 \,\text{tenure} - 1.370 \,\text{female}$$
+
+In the reduced model, the variable `exper` has been removed because it was not statistically significant.
+
+### Comparing the models
+
+We now compare the original model (including `exper`) with the simpler model (excluding it).
+
+#### Do the main conclusions change?
+
+No. The main conclusions remain the same:
+
+- Education (`educ`) and tenure (`tenure`) are positively associated with the probability of earning a high wage  
+- Being female is associated with a lower probability of earning a high wage  
+
+Removing `exper` does not change these conclusions.
+
+#### Do the remaining variables stay significant?
+
+Yes. The key variables (`educ`, `tenure`, and `female`) remain statistically significant in the reduced model.
+
+This suggests that these variables provide robust evidence of an association with the outcome.
+
+#### Is the simpler model easier to interpret?
+
+Yes. The reduced model is simpler because it excludes a variable that was not statistically significant.
+
+This makes the model:
+
+- easier to interpret  
+- more focused on the most important predictors  
+
+### Conclusion
+
+Since removing `exper` does not change the main conclusions and does not affect the significance of the key variables, the simpler model may be preferred.
+
+This follows the principle of **parsimony**:
+
+> When two models perform similarly, we prefer the simpler one.
+
+This mirrors the approach we used in multiple regression: simplify the model while preserving its explanatory power.
+
+## Interpreting the model
+
+We now interpret the results of the logistic regression model in terms of how the explanatory variables are associated with the **probability of earning a high wage**.
+
+### Interpreting the coefficients (intuition)
+
+In logistic regression, the coefficients are expressed in terms of **log-odds**, which are not directly intuitive.
+
+Instead, we focus on:
+
+- the **direction** of the relationship  
+- whether the effect is **statistically significant**
+
+From our model:
+
+- **Education (`educ`)** has a positive and significant effect  
+  $\rightarrow$ More education is associated with a higher probability of earning a high wage  
+
+- **Tenure (`tenure`)** has a positive and significant effect  
+  $\rightarrow$ Staying longer with an employer is associated with a higher probability of earning a high wage  
+
+- **Female (`female`)** has a negative and significant effect  
+  $\rightarrow$ Females have a lower probability of being in the high-wage group compared to males, holding other variables constant  
+
+### From log-odds to probabilities
+
+Although the model is expressed in terms of log-odds, we can convert predictions into **probabilities**.
+
+For example, using the `predict()` function:
+
+```{r}
+predicted_prob <- predict(model_1, type = "response")
+head(predicted_prob)
+```
+
+These values represent the estimated probability that each individual is in the high-wage group.
+
+- Values close to 1 $\rightarrow$ high probability
+- Values close to 0 $\rightarrow$ low probability
+
+### Interpreting probabilities
+
+For example:
+
+- A predicted value of 0.80 means an 80% probability of being in the high-wage group
+- A predicted value of 0.20 means a low probability
+
+This allows us to move from abstract coefficients to meaningful, real-world insights.
+  
+### Interpreting the final fitted model
+
+The final fitted model is:
+
+$$\log\left(\frac{p}{1 - p}\right) = -4.312 + 0.359 \,\text{educ} + 0.096 \,\text{tenure} - 1.370 \,\text{female}$$
+
+This model summarises how the explanatory variables are associated with the **likelihood of earning a high wage**.
+
+### What does the model tell us?
+
+Taken together, the model suggests that:
+
+- Individuals with **higher levels of education** are more likely to earn a high wage  
+- Individuals with **longer tenure** with their employer are more likely to earn a high wage  
+- **Females are less likely** to be in the high-wage group than males, holding other factors constant  
+
+### Putting it all together
+
+Rather than focusing on each variable separately, the model allows us to consider how these factors work **together** to influence the probability of a high wage.
+
+For any individual, we combine their values of education, tenure, and gender to estimate their **probability of being in the high-wage group**.
+
+### Key takeaway
+
+::: {.callout-important}
+The fitted logistic regression model allows us to combine multiple factors to estimate the **likelihood of an outcome**.
+
+It moves us from interpreting individual variables to understanding how they work **together**.
+:::
+
+## Your turn 👉
+
+Since there is no practical session this week, this short exercise encourages you to apply what you have learned by building your own logistic regression model.
+
+**Step 1**: Extend the model
+
+Using the wage1 dataset, estimate a logistic regression model that includes:
+
+- the variables used in the lecture (educ, tenure, female)
+- at least one additional explanatory variable from the dataset
+
+For example, you might consider variables such as:
+
+- `age`
+- `married`
+- `numdep` (number of dependents)
+- or any other variable you find relevant
+
+```{r, echo=TRUE, eval=FALSE}
+model_extended <- glm(high_wage ~ educ + tenure + female + age,
+                      data = wage1,
+                      family = binomial)
+summary(model_extended)
+```
+
+(Note: you should choose your own additional variable, the example above is only illustrative.)
+
+**Step 2**: Evaluate your model
+
+Reflect on the results of your model:
+
+* Which variables are statistically significant?
+* Do the signs of the coefficients make sense?
+* Does your additional variable improve the model?
+
+**Step 3**: Compare with the lecture model
+
+Compare your model to the one estimated in the lecture:
+
+- Do the key results for educ, tenure, and female change?
+- Does adding a new variable affect their significance?
+- Why might this happen?
+
+**Step 4**: Interpretation
+
+Write a short interpretation of your model in words:
+
+- What factors increase the probability of earning a high wage?
+- What factors decrease it?
+- Which variable appears to have the strongest relationship with the outcome?
+
+::: {.callout-important}
+There is no single “correct” model.
+
+Different choices of explanatory variables can lead to different conclusions, and understanding why is a key part of regression analysis.
+:::
